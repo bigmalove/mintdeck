@@ -424,7 +424,10 @@ function render(applet, columns) {
             : (c.quotas || []).reduce((best, q) => (Number.isFinite(q.percent) ? Math.max(best, q.percent) : best), 0);
         quotas.push({ percent: pct, color: c.color });
     }
-    applet._island.setQuotas(quotas, applet.v_showQuotaRing !== false);
+    // 记一份最近结果：设置里把「显示配额环」重新打开时，_reload 立刻拿它恢复，
+    // 不用等下一次数据刷新（刷新只在启动 / 手动 / 换语言时发生）。
+    applet._lastQuotas = quotas;
+    applet._island.setQuotas(quotas, applet.v_showRing !== false);
     // 配额预警由 applet 判定（它才持有设置项与通知通道）；这里只在列更新后敲一下。
     if (typeof applet._onColumns === 'function') {
         try { applet._onColumns(columns); } catch (e) { global.logError(e); }

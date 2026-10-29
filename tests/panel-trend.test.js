@@ -91,6 +91,8 @@ const importsStub = {
 const realImports = global.imports;
 const realGlobal = global.global;
 global.imports = importsStub;
+// weatherIcon.js 顶层读 imports.lib.ui.draw：必须等 global.imports 装好再 require
+global.imports.lib.ui.weatherIcon = require(path.join(ROOT, 'lib', 'ui', 'weatherIcon.js'));
 global.global = { stage: {} };
 after(() => {
   global.imports = realImports;

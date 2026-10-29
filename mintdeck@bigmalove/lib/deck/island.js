@@ -18,6 +18,11 @@ const PangoCairo = imports.gi.PangoCairo;
 
 const Draw = imports.lib.ui.draw;
 
+// 天气图标与面板共用一份（lib/ui/weatherIcon.js）；取不到就只显示温度文字，
+// 不能因为它没加载上让整帧 repaint 抛出去。
+let WeatherIcon = null;
+try { WeatherIcon = imports.lib.ui.weatherIcon; } catch (e) { WeatherIcon = null; }
+
 let Geo = null;
 try { Geo = imports.lib.core.geometry; } catch (e) { Geo = null; }
 
@@ -50,6 +55,7 @@ var Island = class Island {
         this._title = '';
         this._lyric = '';
         this._quotas = [];
+        this._weather = null;       // 收起态天气 { tempText, kind }；null = 这一段不存在
         this._coverPixbuf = null;
         this._coverUri = '';
         this._coverSurface = null;
@@ -227,6 +233,7 @@ var Island = class Island {
             ring: 18 * k, ringGap: 3 * k, ringStroke: 2 * k,
             gap: 6 * k,
             eqWidth: 22 * k, eqBar: 2 * k, eqMinH: 3 * k, eqRangeH: 9 * k, eqStep: 4 * k,
+            weatherIcon: 15 * k, weatherIconGap: 3 * k,
             textCap: 110 * k,
             fontUi: halfPx(11.5 * k),
             fontClock: halfPx(12 * k)
@@ -290,27 +297,44 @@ var Island = class Island {
     }
 
     _paintContent(cr, w, h) {
+        // 内容一律裁在表面里：固定档位（小/标准/大）的宽度是用户钉死的，环 + 标题 + 天气 + 时钟
+        // 全打开时可能比岛宽出十几像素。以前不裁就真的画到桌面上 —— 刘海不再是一条贴屏的条。
+        cr.save();
+        try {
+            this._path(cr, w, h, 0);
+            cr.clip();
+            this._paintContentInner(cr, w, h);
+        } finally {
+            cr.restore();
+        }
+    }
+
+    _paintContentInner(cr, w, h) {
         const m = this._metrics();
         const inset = Math.round((this._shape && this._shape.inset) || 0);
         const avail = w - inset * 2;
+        if (avail <= 0) return;
 
-        // 量出各段宽度（字体大小来自档位，所以量出来的宽度也随档位变）
         const showCover = !!this._coverSurface;
         const rings = this._quotas.length;
         const showEq = this._playing || !!this._title;
         const textStr = this._lyric || this._title || '';
         const showText = !!textStr;
         const showClock = !!this._clock;
+        const weather = this._weather;
+        const weatherKind = weather ? weather.kind : null;
+        const weatherTemp = weather ? weather.tempText : '';
+        const showWeatherIcon = !!(weatherKind && WeatherIcon);
+        const showWeather = !!weather && (showWeatherIcon || !!weatherTemp);
 
         const layout = PangoCairo.create_layout(cr);
         layout.set_font_description(this._fontDesc(m.fontUi));
 
-        let textW = 0, textH = 0;
+        // 量出各段宽度（字体大小来自档位，所以量出来的宽度也随档位变）
+        let naturalTextW = 0;
         if (showText) {
             layout.set_text(textStr, -1);
-            const ext = layout.get_pixel_extents()[1];
-            textW = ext.width;
-            textH = ext.height;
+            naturalTextW = layout.get_pixel_extents()[1].width;
         }
 
         let clockW = 0;
@@ -321,13 +345,36 @@ var Island = class Island {
             clockW = cl.get_pixel_extents()[1].width;
         }
 
-        // 总宽 = 各段 + 间隙
-        let total = 0;
-        if (showCover) total += m.cover + m.gap;
-        if (rings) total += rings * m.ring + (rings - 1) * m.ringGap + m.gap;
-        if (showText) total += Math.min(textW, Math.max(20 * m.k, avail - total)) + m.gap;
-        if (showEq) total += m.eqWidth + m.gap;
-        if (showClock) total += clockW;
+        // 天气段：图标 + 图标与温度之间的缝 + 温度字。只有 kind 没有温度时就只有一个图标。
+        let weatherTempW = 0;
+        if (weatherTemp) {
+            const wl = PangoCairo.create_layout(cr);
+            wl.set_font_description(this._fontDesc(m.fontUi));
+            wl.set_text(weatherTemp, -1);
+            weatherTempW = wl.get_pixel_extents()[1].width;
+        }
+        const weatherIconW = showWeatherIcon ? m.weatherIcon : 0;
+        const weatherGap = (weatherIconW > 0 && weatherTempW > 0) ? m.weatherIconGap : 0;
+        const weatherW = weatherIconW + weatherGap + weatherTempW;
+
+        // 先给固定段（封面 / 环 / 律动 / 天气 / 时钟）占位，文字拿剩下的空间。
+        // 段与段之间都有一个 gap，最后一段不带尾部 gap。
+        // 以前文字在 total 里先占位、绘制时又按剩余量截断，两边算的不是一个数；
+        // 天气一开就会把时钟挤出岛外，而画到岛外的内容是直接落在桌面上的。
+        let fixed = 0;
+        if (showCover) fixed += m.cover + m.gap;
+        if (rings) fixed += rings * m.ring + (rings - 1) * m.ringGap + m.gap;
+        if (showEq) fixed += m.eqWidth + m.gap;
+        if (showWeather) fixed += weatherW + m.gap;
+        if (showClock) fixed += clockW;
+
+        let textW = 0;
+        if (showText) {
+            const room = Math.max(0, avail - fixed - m.gap);   // 文字自己的尾巴 gap 也算进预算
+            textW = Math.min(naturalTextW, room);
+        }
+
+        const total = fixed + (showText && textW > 0 ? textW + m.gap : 0);
 
         let x = inset + Math.max(0, (avail - total) / 2);
         const cy = h / 2;
@@ -372,10 +419,8 @@ var Island = class Island {
         if (rings) x += m.gap - m.ringGap;
 
         // 文字（歌词优先）
-        if (showText) {
-            const limit = Math.max(20 * m.k, avail - (x - inset)
-                - (showEq ? m.eqWidth + m.gap : 0) - (showClock ? clockW + m.gap : 0) - m.gap);
-            layout.set_width(Math.round(limit * Pango.SCALE));
+        if (showText && textW > 0.5) {
+            layout.set_width(Math.round(textW * Pango.SCALE));
             layout.set_ellipsize(Pango.EllipsizeMode.END);
             const [lw, lh] = layout.get_pixel_size();
             Draw.setColor(cr, this._color(this._lyric ? 'textSecondary' : 'textPrimary'));
@@ -399,6 +444,28 @@ var Island = class Island {
                 cr.stroke();
             }
             x += m.eqWidth + m.gap;
+        }
+
+        // 天气：小图标 + 温度。收起态不写天气名 —— 那是面板日程页的活，这里只给一眼可见的读数。
+        if (showWeather) {
+            if (showWeatherIcon) {
+                // 1.25 倍：紧凑图标本体 12×12，乘完约 15px，和 11.5 的字站在一起不显小；
+                // 中心上移半像素：云在方框里偏上，闪电尾巴往下，光学校正后和温度字同一基线。
+                WeatherIcon.drawCompact(cr, x + weatherIconW / 2, cy - 0.5 * m.k, weatherKind,
+                    (key) => this._color(key), m.k * 1.25);
+                x += weatherIconW + weatherGap;
+            }
+            if (weatherTempW > 0) {
+                const wl = PangoCairo.create_layout(cr);
+                wl.set_font_description(this._fontDesc(m.fontUi));
+                wl.set_text(weatherTemp, -1);
+                const [tw, th] = wl.get_pixel_size();
+                Draw.setColor(cr, this._color('textSecondary'));
+                cr.moveTo(x, cy - th / 2);
+                PangoCairo.show_layout(cr, wl);
+                x += tw;
+            }
+            x += m.gap;
         }
 
         // 时钟
@@ -445,6 +512,7 @@ var Island = class Island {
         n += this._quotas.length;
         if (this._lyric || this._title) n += 1;
         if (this._playing || this._title) n += 1;
+        if (this._weather) n += 1;
         if (this._clock) n += 1;
         return n;
     }
@@ -467,8 +535,32 @@ var Island = class Island {
         const text = this._lyric || this._title;
         if (text) w += Math.min(m.textCap, estimateText(text, m.k)) + m.gap;
         if (this._playing || this._title) w += m.eqWidth + m.gap;
+        const wth = this._weather;
+        if (wth) {
+            let ww = 0;
+            if (wth.kind && WeatherIcon) ww += m.weatherIcon;
+            if (wth.tempText) {
+                if (ww > 0) ww += m.weatherIconGap;
+                ww += estimateText(wth.tempText, m.k);
+            }
+            if (ww > 0) w += ww + m.gap;
+        }
         if (this._clock) w += estimateText(this._clock, m.k) + m.gap;
         return Math.max(0, Math.round(w));
+    }
+
+    // 收起态天气：{ tempText: '21°', kind: 'partly' }。
+    // 传 null / 空对象表示「这一段不存在」—— 不拿「—」占位：收起态的宽度按内容算，
+    // 留一个没有读数的段只会让岛白宽一截。取不到天气时面板那边会写原因，岛上不显示。
+    setWeather(info) {
+        const before = this._contentKey();
+        const next = (info && typeof info === 'object') ? info : null;
+        const kind = next && typeof next.kind === 'string' && next.kind ? next.kind : null;
+        const tempText = next && typeof next.tempText === 'string' ? next.tempText : '';
+        this._weather = (kind || tempText) ? { kind: kind, tempText: tempText } : null;
+        this.actor.queue_repaint();
+        if (this._contentKey() !== before && this.onContentChanged) this.onContentChanged();
+        return false;
     }
 
     setQuotas(quotas, enabled) {

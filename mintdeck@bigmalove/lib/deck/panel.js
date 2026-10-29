@@ -15,6 +15,11 @@ const Clutter = imports.gi.Clutter;
 const Draw = imports.lib.ui.draw;
 const I18n = imports.lib.core.i18n;
 
+// 天气图标与收起态共用一份（lib/ui/weatherIcon.js）。取不到就退化成「只显示文字天气名」，
+// 不能因为它没加载上让整个面板的 repaint 抛出去。
+let WeatherIcon = null;
+try { WeatherIcon = imports.lib.ui.weatherIcon; } catch (e) { WeatherIcon = null; }
+
 // 文案统一走 i18n：msgid 是中文原文，panel 在每次 repaint 时才取译文，
 // 所以设置里换语言不用重建 panel（顶层常量会把中文冻结在加载那一刻）。
 const _ = I18n.t;
@@ -1114,71 +1119,12 @@ var Panel = class Panel {
         }
     }
 
-    // 天气图标：只画能一眼认出的几种；不认识的 kind 什么也不画（文字里已经有天气名）
+    // 天气图标：实现搬到 lib/ui/weatherIcon.js。收起态（island.js）也要画同一套 WMO 分组，
+    // 两份内联实现迟早画得不一样；这里只负责把面板的主题取色传进去。
+    // 模块没加载上就什么也不画 —— 文字里还有天气名，缺个图标不影响读数。
     _weatherIcon(cr, cx, cy, kind) {
-        if (!kind) return;
-        const color = this._color('textSecondary');
-        Draw.setColor(cr, color);
-        cr.setLineWidth(1.3);
-        cr.setLineCap(1);
-
-        if (kind === 'clear') {
-            cr.newSubPath(); cr.arc(cx, cy, 4.2, 0, Math.PI * 2); cr.fill();
-            for (let i = 0; i < 8; i++) {
-                const ang = i * Math.PI / 4;
-                cr.newSubPath();
-                cr.moveTo(cx + Math.cos(ang) * 6.2, cy + Math.sin(ang) * 6.2);
-                cr.lineTo(cx + Math.cos(ang) * 8.4, cy + Math.sin(ang) * 8.4);
-                cr.stroke();
-            }
-            return;
-        }
-        if (kind === 'fog') {
-            for (let i = 0; i < 3; i++) {
-                cr.newSubPath();
-                cr.moveTo(cx - 8, cy - 4 + i * 4);
-                cr.lineTo(cx + 8 - (i === 1 ? 3 : 0), cy - 4 + i * 4);
-                cr.stroke();
-            }
-            return;
-        }
-
-        // 云：三个圆弧连成一片，再兜一条底边
-        cr.newSubPath();
-        cr.arc(cx - 4.5, cy + 1.5, 4.2, Math.PI, 0);
-        cr.arc(cx + 1.5, cy - 2, 5.6, Math.PI * 0.85, Math.PI * 0.15);
-        cr.arc(cx + 7, cy + 1.5, 4.2, Math.PI, 0);
-        cr.lineTo(cx - 4.5, cy + 5.7);
-        cr.closePath();
-        cr.fill();
-
-        if (kind === 'partly') {
-            Draw.setColor(cr, this._color('textTertiary'));
-            cr.newSubPath(); cr.arc(cx + 7.5, cy - 6, 3.4, 0, Math.PI * 2); cr.fill();
-        }
-        if (kind === 'rain' || kind === 'drizzle') {
-            Draw.setColor(cr, this._color('textSecondary'));
-            const len = kind === 'drizzle' ? 3 : 4.6;
-            for (let i = 0; i < 3; i++) {
-                const dx = cx - 5 + i * 5;
-                cr.newSubPath(); cr.moveTo(dx, cy + 8); cr.lineTo(dx - 1.2, cy + 8 + len); cr.stroke();
-            }
-        }
-        if (kind === 'snow') {
-            Draw.setColor(cr, this._color('textSecondary'));
-            for (let i = 0; i < 3; i++) {
-                cr.newSubPath(); cr.arc(cx - 5 + i * 5, cy + 9.5, 1.1, 0, Math.PI * 2); cr.fill();
-            }
-        }
-        if (kind === 'storm') {
-            Draw.setColor(cr, this._color('accent'));
-            cr.newSubPath();
-            cr.moveTo(cx + 1, cy + 6.5); cr.lineTo(cx - 2, cy + 12.5);
-            cr.lineTo(cx + 0.6, cy + 12.5); cr.lineTo(cx - 1.4, cy + 17);
-            cr.lineTo(cx + 4, cy + 10.6); cr.lineTo(cx + 1.4, cy + 10.6);
-            cr.closePath();
-            cr.fill();
-        }
+        if (!WeatherIcon) return;
+        WeatherIcon.draw(cr, cx, cy, kind, (key) => this._color(key), 1);
     }
 
     // ---------------------------------------------------------------- 任务（下载 / 容器 / systemd）

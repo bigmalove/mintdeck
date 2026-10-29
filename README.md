@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-E5A385?style=flat-square)](LICENSE)
 [![Cinnamon](https://img.shields.io/badge/Cinnamon-5.8%20%7C%206.0%20%7C%206.2%20%7C%206.4%20%7C%206.6-32A852?style=flat-square)](mintdeck@bigmalove/metadata.json)
-[![Tests](https://img.shields.io/badge/tests-270%20passing-2E8B57?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-278%20passing-2E8B57?style=flat-square)](tests)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-339933?style=flat-square&logo=node.js&logoColor=white)](tests)
 
 Cinnamon 桌面上的「灵动岛」：屏幕顶部一条悬浮的小黑条，鼠标移上去展开，集中显示 **AI 编程工具的额度与用量**、**日程与天气**、**正在播放的音乐**、**系统监控**，另有 **番茄钟**、**网络质量** 与 **下载/容器任务** 三页。
@@ -10,7 +10,7 @@ Cinnamon 桌面上的「灵动岛」：屏幕顶部一条悬浮的小黑条，�
 <p align="center">
   <img src="docs/images/collapsed.png" alt="收起态" width="820">
   <br>
-  <sub>收起态：封面 / 配额环 / 标题 / 律动条 / 时钟，宽度贴着内容自动伸缩</sub>
+  <sub>收起态：封面 / 配额环 / 标题 / 律动条 / 天气 / 时钟，宽度贴着内容自动伸缩</sub>
 </p>
 
 这是 [BrimDeck](https://github.com/MoFeng2223/BrimDeck)（Windows 11 / C# + WPF）的 Linux Mint 复刻：几何参数、主题文件格式、数据模型都按上游 1:1 移植，Windows 专有的通道（SMTC、DPAPI、PDH、CDP）换成 Linux 的标准接口（MPRIS、procfs、JSONL、Soup）。
@@ -57,7 +57,7 @@ uuid 是 `mintdeck@bigmalove`，已按 Cinnamon Spices 的目录规范提交到
 | --- | --- | --- |
 | AI 用量 | 每列：工具名 + 套餐徽章、配额槽（5 小时 / 每周 / 上下文）、今日与七日的 Token 或积分 | Claude Code：`~/.claude/projects/**/*.jsonl`；DeepSeek Harness：`~/.dsh-desktop/sessions/**/*.jsonl.zstd`；WorkBuddy：`~/.workbuddy/workbuddy.db` 的 `session_usage`（经 python3 只读桥）+ `storage/skeleton/account-snapshot.json` |
 | 用量趋势 | 每个来源一行 14 天柱状图：各自单位（Token / 积分）、今日与合计；0 值只留轨道 | 同上（复用同一批解析结果，`daily()` 切自然日桶） |
-| 日程 | 月历（今天带圈、有日程的日子点一下）+ 今日日程 + 未来 7 天；右上角天气 | 本机 `.ics`（`~/.local/share/evolution/{calendar,tasks}/**/*.ics`）+ Open-Meteo（免 key） |
+| 日程 | 月历（今天带圈、有日程的日子点一下）+ 今日日程 + 未来 7 天；右上角天气，收起态显示天气图标与当前温度 | 本机 `.ics`（`~/.local/share/evolution/{calendar,tasks}/**/*.ics`）+ Open-Meteo（免 key） |
 | 专注计时 | 25/5/15 番茄钟：大号倒计时、阶段、进度条、轮次点；开始/暂停/跳过/重置。专注时收起态的时钟位换成倒计时 | 纯本地状态机 `lib/core/pomodoro.js`（node 可测），不联网 |
 | 音乐 | 歌名、歌手、播放状态；收起态显示标题或当前歌词 | MPRIS（任何支持 D-Bus 媒体控制的播放器） |
 | 系统监控 | 概览：CPU 总值与每核柱、内存、GPU、上下行网速、TOP 6 进程；页脚「详情 ›」切第二屏：磁盘占用、温度、风扇、CPU 频率（收起态可显示读数） | `/proc/stat`、`/proc/meminfo`、`/proc/net/dev`、`nvidia-smi`、`statvfs`、`/sys/class/thermal`、`/sys/class/hwmon`、`/sys/.../scaling_cur_freq` |
@@ -70,6 +70,7 @@ uuid 是 `mintdeck@bigmalove`，已按 Cinnamon Spices 的目录规范提交到
 
 **日程与天气**（AI 用量页 → 日程与天气）：填了天气城市才会请求 Open-Meteo（留空 = 完全不发请求，不猜经纬度）；
 同城 10 分钟缓存、失败安静 60 秒。日程从本机日历读，读不到就是空列表 —— 不会拿假事件充数。
+设置 → 收起形态 → 「收起时显示天气」（默认开）会把天气图标和当前温度放到收起态的时钟左边；取不到读数时这一段整段不出现，不拿「—」占位。
 
 **下载与容器**（AI 用量页 → 下载与容器）：aria2 JSON-RPC 与 qBittorrent Web UI 的地址**留空即关闭**；
 容器默认显示（先 `docker ps`，没有 docker 再试 `podman ps`）。这些地址只连本机回环，凭据存在小程序配置里。
@@ -88,7 +89,7 @@ uuid 是 `mintdeck@bigmalove`，已按 Cinnamon Spices 的目录规范提交到
 ## 设置
 
 系统设置 → 小程序 → MintDeck → 配置。收起态尺寸默认 **自动**：岛的高矮和内容（字体、封面、配额环、律动条、间隙）
-跟着「当前真的画出来的段数」走 —— 只有时钟时是一枚 24 高的小刘海，封面 / 配额环 / 标题 / 律动 / 时钟齐全才长到 40 高；
+跟着「当前真的画出来的段数」走 —— 只有时钟时是一枚 24 高的小刘海，封面 / 配额环 / 标题 / 律动 / 天气 / 时钟齐全才长到 40 高；
 宽度永远贴着内容，两侧只留 `16 + 10×缩放`，不会再出现内容缩在中间、两边一片空的情况。
 不喜欢它变来变去，可以固定成三档之一：
 

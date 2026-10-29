@@ -2,7 +2,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-E5A385?style=flat-square)](LICENSE)
 [![Cinnamon](https://img.shields.io/badge/Cinnamon-5.8%20%7C%206.0%20%7C%206.2%20%7C%206.4%20%7C%206.6-32A852?style=flat-square)](mintdeck@bigmalove/metadata.json)
-[![Tests](https://img.shields.io/badge/tests-270%20passing-2E8B57?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-278%20passing-2E8B57?style=flat-square)](tests)
 
 A Linux Mint / Cinnamon port of [BrimDeck](https://github.com/MoFeng2223/BrimDeck) (Windows 11, C# + WPF):
 a Dynamic-Island-style strip that floats at the top of the screen, expands on hover, and shows
@@ -15,7 +15,7 @@ Windows-only transport (SMTC, DPAPI, PDH, CDP) is replaced by a Linux standard i
 <p align="center">
   <img src="docs/images/collapsed.png" alt="collapsed" width="820">
   <br>
-  <sub>Collapsed: cover, quota rings, title, visualiser and clock — width hugs the content</sub>
+  <sub>Collapsed: cover, quota rings, title, visualiser, weather and clock — width hugs the content</sub>
 </p>
 
 | AI usage (expanded) | Music | System monitor |
@@ -56,7 +56,7 @@ Uninstall: `tools/uninstall.sh`.
 | --- | --- | --- |
 | AI usage | per tool: name + plan badge, quota slots (5h / weekly / context), today's and 7-day tokens or credits | Claude Code `~/.claude/projects/**/*.jsonl`; DeepSeek Harness `~/.dsh-desktop/sessions/**/*.jsonl.zstd`; WorkBuddy `~/.workbuddy/workbuddy.db` (`session_usage`, read-only python bridge) |
 | Usage trend | one row of 14 daily bars per source, each in its own unit (tokens / credits), with today and window totals | same as above (reuses the parsed sessions, bucketed per calendar day by `daily()`) |
-| Agenda | month grid (today ringed, days with events dotted), today's events, next 7 days, and the weather in the top-right corner | local `.ics` files under `~/.local/share/evolution/{calendar,tasks}/**/*.ics` + Open-Meteo (no API key) |
+| Agenda | month grid (today ringed, days with events dotted), today's events, next 7 days, and the weather in the top-right corner; the collapsed strip shows the weather icon and current temperature | local `.ics` files under `~/.local/share/evolution/{calendar,tasks}/**/*.ics` + Open-Meteo (no API key) |
 | Focus timer | a 25/5/15 pomodoro: large countdown, phase, progress bar, round dots; start / pause / skip / reset. While focusing, the collapsed clock slot shows the countdown | local state machine `lib/core/pomodoro.js`, no network |
 | Music | title, artist, play state; collapsed mode shows the title or the current lyric line | MPRIS (any D-Bus media player) |
 | System monitor | overview: CPU total and per-core bars, memory, GPU, throughput, top 6 processes; the “Details ›” link at the footer switches to a second screen with disk usage, temperature, fan and CPU frequency | `/proc/stat`, `/proc/meminfo`, `/proc/net/dev`, `nvidia-smi`, `statvfs`, `/sys/class/thermal`, `/sys/class/hwmon` |
@@ -70,6 +70,10 @@ quota and never alerts.
 Agenda and weather: the weather module only runs when a city is set (empty = no request at all, no guessing of
 coordinates); results are cached 10 minutes per city and failures back off for 60 seconds. Calendar events come from
 the local calendar only — an empty calendar shows an empty list, never fake entries.
+
+Weather on the collapsed strip (Settings → Collapsed → “Show weather when collapsed”, on by default) puts the
+weather icon and current temperature left of the clock. When the reading is unavailable the whole segment
+disappears — it never shows a placeholder such as “—”.
 
 Downloads and tasks: the aria2 JSON-RPC and qBittorrent Web UI URLs are opt-in (empty = disabled); containers are read
 through `docker ps` (falling back to `podman ps`), and a missing runtime shows as “no container runtime detected”, not 0.
@@ -88,7 +92,7 @@ value is the average of all cores.
 
 Size modes: **auto** (the strip's height and content scale follow how many segments are actually
 drawn), plus fixed `compact` / `standard` / `large` tiers. Auto 3 segments equals standard, 5 equals
-large, and both geometry and content (fonts, cover, rings, visualiser) scale together.
+large, and both geometry and content (fonts, cover, rings, visualiser, weather) scale together.
 
 Interface languages: Simplified Chinese, Traditional Chinese, English, Japanese — switchable at
 runtime in the applet settings (the island is drawn with St/cairo, so no shell restart is needed).

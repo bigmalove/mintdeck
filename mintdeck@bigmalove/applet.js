@@ -88,6 +88,7 @@ class MintDeckApplet extends Applet.Applet {
         this._alertState = {};      // 配额预警的边沿状态：{ [来源名]: { level, at } }
         this._pomodoro = null;      // 番茄钟状态机（构造末尾 create）
         this._lastMonitor = null;   // 最近一帧系统监控（网络页要借用上下行）
+        this._lastQuotas = [];      // 最近一帧配额环（重新打开「显示配额环」时立刻恢复）
         this._lastNet = null;       // 最近一帧网络质量采样
         this._sysinfo = null;       // 磁盘 / 温度 / 风扇 / 频率
         this._calendar = null;      // 日程采集结果 { events, sources, error }
@@ -105,8 +106,15 @@ class MintDeckApplet extends Applet.Applet {
         s.bind('panelTheme', 'v_theme', () => this._reloadTheme());
         s.bind('clockStyle', 'v_clockStyle', () => this._reload());
         s.bind('clock24Hour', 'v_clock24', () => this._tick());
-        s.bind('showQuotaRing', 'v_showRing', () => this._reload());
+        // 打开「显示配额环」时先用手上最近一帧恢复（_reload）；万一那一帧还没到
+        // （启动后马上点开），补一次数据刷新 —— 否则开关看上去像是没生效。
+        s.bind('showQuotaRing', 'v_showRing', () => {
+            this._reload();
+            if (this.v_showRing && !(this._lastQuotas && this._lastQuotas.length)) this._scheduleRefresh(120);
+        });
         s.bind('showClock', 'v_showClock', () => this._reload());
+        // 收起态天气：只改这一段有没有，不重建岛（setWeather 自己会触发重排）
+        s.bind('showWeatherInIsland', 'v_showWeatherInIsland', () => this._publishWeather());
         s.bind('showMonitor', 'v_showMonitor', () => this._reload());
         // 收起尺寸：默认 auto（按当前画出来的段数自动缩放），也可以钉死成小/标准/大三档。
         // 像素级微调只改表面不改内容，已经收进 geometry 的预设表。
@@ -308,7 +316,12 @@ class MintDeckApplet extends Applet.Applet {
         this._layout();
         // 收起态内容开关
         if (this.v_showClock) this._tick(); else this._island.setClockText('');
+        // 关掉就把环收起来；再打开时用手上最近一帧的配额立刻恢复。
+        // 以前只清不补，打开开关后要等下一次数据刷新才可能重新出现 —— 而刷新不是定时的，
+        // 所以「打开显示配额环」看上去像没生效。
         if (!this.v_showRing) this._island.setQuotas([]);
+        else if (this._lastQuotas) this._island.setQuotas(this._lastQuotas, true);
+        this._publishWeather();
         return false;
     }
 
@@ -667,6 +680,10 @@ class MintDeckApplet extends Applet.Applet {
     _restartDay() {
         this._stopExtra('calendar');
         this._stopExtra('weather');
+        // 城市变了（或首次启动）先把旧读数撤下：留着上一个城市的温度比空着更糟 ——
+        // 设置里已经改成别的城市，岛上却还在报旧城市的 21°。
+        this._weather = null;
+        this._publishWeather();
         try {
             this._extraStops.calendar = Live.startCalendar((res) => {
                 this._calendar = res;
@@ -788,6 +805,24 @@ class MintDeckApplet extends Applet.Applet {
     _publishAgenda() {
         if (!this._panel) return;
         this._panel.setAgenda(this._buildAgenda());
+        this._publishWeather();
+    }
+
+    // 收起态天气段：只有图标 + 温度。天气名留给面板日程页 —— 岛上放不下，
+    // 也不该为了一个「多云」把岛撑长一截。取不到读数就返回 null（这一段不存在）。
+    _tileWeather() {
+        const w = this._weather;
+        if (!w) return null;
+        const tempText = Number.isFinite(w.tempC) ? Math.round(w.tempC) + '°' : '';
+        if (!tempText && !w.kind) return null;
+        return { tempText: tempText, kind: w.kind || null };
+    }
+
+    // 设置里关掉就立刻撤掉；打开就用手上这一帧（可能是缓存）立刻显示，不等下一次刷新。
+    _publishWeather() {
+        if (!this._island) return;
+        if (this.v_showWeatherInIsland === false) { this._island.setWeather(null); return; }
+        this._island.setWeather(this._tileWeather());
     }
 
     _publishTasks() {

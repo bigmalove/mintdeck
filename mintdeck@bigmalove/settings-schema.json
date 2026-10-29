@@ -45,7 +45,7 @@
     "section-content": {
       "type": "section",
       "title": "收起时显示",
-      "keys": ["showQuotaRing", "showClock", "showMonitor"]
+      "keys": ["showQuotaRing", "showClock", "showMonitor", "showWeatherInIsland"]
     },
     "section-geometry": {
       "type": "section",
@@ -166,6 +166,11 @@
     "type": "checkbox",
     "default": false,
     "description": "显示系统读数"
+  },
+  "showWeatherInIsland": {
+    "type": "checkbox",
+    "default": true,
+    "description": "收起时显示天气（需在「日程与天气」里填城市）"
   },
   "collapsedSize": {
     "type": "combobox",

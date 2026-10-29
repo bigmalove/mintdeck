@@ -45,115 +45,115 @@ msgstr "雪"
 msgid "雷雨"
 msgstr "雷雨"
 
-#: mintdeck@bigmalove/applet.js:421 mintdeck@bigmalove/applet.js:423
+#: mintdeck@bigmalove/applet.js:424 mintdeck@bigmalove/applet.js:426
 msgid "番茄钟"
 msgstr "ポモドーロ"
 
-#: mintdeck@bigmalove/applet.js:421
+#: mintdeck@bigmalove/applet.js:424
 msgid "专注结束，休息 %s 分钟"
 msgstr "集中終了 — %s 分休憩"
 
-#: mintdeck@bigmalove/applet.js:423
+#: mintdeck@bigmalove/applet.js:426
 msgid "休息结束，回来继续专注"
 msgstr "休憩終了 — 集中に戻りましょう"
 
-#: mintdeck@bigmalove/applet.js:579 settings-schema.json
+#: mintdeck@bigmalove/applet.js:582 settings-schema.json
 msgid "专注计时"
 msgstr "集中タイマー"
 
-#: mintdeck@bigmalove/applet.js:583
+#: mintdeck@bigmalove/applet.js:586
 msgid "设置…"
 msgstr "設定…"
 
-#: mintdeck@bigmalove/applet.js:584
+#: mintdeck@bigmalove/applet.js:587
 msgid "重新读取数据"
 msgstr "データを再読み込み"
 
-#: mintdeck@bigmalove/applet.js:586
+#: mintdeck@bigmalove/applet.js:589
 msgid "关于 MintDeck"
 msgstr "MintDeck について"
 
-#: mintdeck@bigmalove/applet.js:587
+#: mintdeck@bigmalove/applet.js:590
 msgid "基于 BrimDeck（Apache-2.0）的 Cinnamon 复刻。"
 msgstr "BrimDeck（Apache-2.0）をベースにした Cinnamon 向けの再実装です。"
 
-#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+#: mintdeck@bigmalove/applet.js:710 mintdeck@bigmalove/applet.js:791
 msgid "周日"
 msgstr "日"
 
-#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+#: mintdeck@bigmalove/applet.js:710 mintdeck@bigmalove/applet.js:791
 msgid "周一"
 msgstr "月"
 
-#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+#: mintdeck@bigmalove/applet.js:710 mintdeck@bigmalove/applet.js:791
 msgid "周二"
 msgstr "火"
 
-#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+#: mintdeck@bigmalove/applet.js:710 mintdeck@bigmalove/applet.js:791
 msgid "周三"
 msgstr "水"
 
-#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+#: mintdeck@bigmalove/applet.js:710 mintdeck@bigmalove/applet.js:791
 msgid "周四"
 msgstr "木"
 
-#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+#: mintdeck@bigmalove/applet.js:710 mintdeck@bigmalove/applet.js:791
 msgid "周五"
 msgstr "金"
 
-#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+#: mintdeck@bigmalove/applet.js:710 mintdeck@bigmalove/applet.js:791
 msgid "周六"
 msgstr "土"
 
-#: mintdeck@bigmalove/applet.js:737
+#: mintdeck@bigmalove/applet.js:744
 msgid "全天"
 msgstr "終日"
 
-#: mintdeck@bigmalove/applet.js:738 mintdeck@bigmalove/applet.js:748
+#: mintdeck@bigmalove/applet.js:745 mintdeck@bigmalove/applet.js:755
 msgid "（无标题）"
 msgstr "（無題）"
 
-#: mintdeck@bigmalove/applet.js:747
+#: mintdeck@bigmalove/applet.js:754
 msgid "明天"
 msgstr "明日"
 
-#: mintdeck@bigmalove/applet.js:771
+#: mintdeck@bigmalove/applet.js:778
 msgid "%s月%s日 · %s"
 msgstr "%s月%s日 · %s"
 
-#: mintdeck@bigmalove/applet.js:779
+#: mintdeck@bigmalove/applet.js:786
 msgid "设置里填城市后显示天气"
 msgstr "設定で都市を入力すると天気を表示します"
 
-#: mintdeck@bigmalove/applet.js:796
+#: mintdeck@bigmalove/applet.js:821
 msgid "任务模块不可用"
 msgstr "タスクモジュールは利用できません"
 
-#: mintdeck@bigmalove/applet.js:807
+#: mintdeck@bigmalove/applet.js:832
 msgid "（未命名）"
 msgstr "（名前なし）"
 
-#: mintdeck@bigmalove/applet.js:809
+#: mintdeck@bigmalove/applet.js:834
 msgid "剩余 %s"
 msgstr "残り %s"
 
-#: mintdeck@bigmalove/applet.js:823 mintdeck@bigmalove/lib/deck/panel.js:1228
+#: mintdeck@bigmalove/applet.js:848 mintdeck@bigmalove/lib/deck/panel.js:1174
 msgid "未配置下载器"
 msgstr "ダウンローダー未設定"
 
-#: mintdeck@bigmalove/applet.js:843
+#: mintdeck@bigmalove/applet.js:868
 msgid "读取失败：%s"
 msgstr "読み込み失敗：%s"
 
-#: mintdeck@bigmalove/applet.js:868
+#: mintdeck@bigmalove/applet.js:893
 msgid "配额预警"
 msgstr "クォータ警告"
 
-#: mintdeck@bigmalove/applet.js:870
+#: mintdeck@bigmalove/applet.js:895
 msgid "%s 已达 %s，额度即将用完"
 msgstr "%s が %s に到達 — まもなく上限"
 
-#: mintdeck@bigmalove/applet.js:871
+#: mintdeck@bigmalove/applet.js:896
 msgid "%s 已用 %s"
 msgstr "%s は %s 使用"
 
@@ -190,7 +190,7 @@ msgid "%s 个会话 · 累计 %s 积分"
 msgstr "%s セッション · 累計 %s ポイント"
 
 #: mintdeck@bigmalove/lib/deck/data.js:323
-#: mintdeck@bigmalove/lib/deck/panel.js:1088
+#: mintdeck@bigmalove/lib/deck/panel.js:1093
 msgid "今天"
 msgstr "今日"
 
@@ -234,231 +234,231 @@ msgstr "読み込み失敗"
 msgid "读取中…"
 msgstr "読み込み中…"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:462
+#: mintdeck@bigmalove/lib/deck/panel.js:467
 msgid "没有可显示的来源"
 msgstr "表示できるソースがありません"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:531
+#: mintdeck@bigmalove/lib/deck/panel.js:536
 msgid "used"
 msgstr "使用"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:552
+#: mintdeck@bigmalove/lib/deck/panel.js:557
 msgid "今日"
 msgstr "今日"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:553
+#: mintdeck@bigmalove/lib/deck/panel.js:558
 msgid "七日"
 msgstr "7 日"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:581
+#: mintdeck@bigmalove/lib/deck/panel.js:586
 msgid "未检测到播放器"
 msgstr "プレーヤーが見つかりません"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:677
+#: mintdeck@bigmalove/lib/deck/panel.js:682
 msgid "概览"
 msgstr "概要"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:677
+#: mintdeck@bigmalove/lib/deck/panel.js:682
 msgid "详情"
 msgstr "詳細"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:688
-#: mintdeck@bigmalove/lib/deck/panel.js:845
+#: mintdeck@bigmalove/lib/deck/panel.js:693
+#: mintdeck@bigmalove/lib/deck/panel.js:850
 msgid "采样未接入"
 msgstr "サンプリング未接続"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:770
+#: mintdeck@bigmalove/lib/deck/panel.js:775
 msgid "暂无用量数据"
 msgstr "使用量データがありません"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:795
+#: mintdeck@bigmalove/lib/deck/panel.js:800
 msgid "积分 / 天"
 msgstr "クレジット / 日"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:795
+#: mintdeck@bigmalove/lib/deck/panel.js:800
 msgid "Token / 天"
 msgstr "Token / 日"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:802
+#: mintdeck@bigmalove/lib/deck/panel.js:807
 msgid "今日 %s"
 msgstr "今日 %s"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:802
+#: mintdeck@bigmalove/lib/deck/panel.js:807
 msgid "合计 %s"
 msgstr "合計 %s"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:830
+#: mintdeck@bigmalove/lib/deck/panel.js:835
 msgid "最近 %s 天"
 msgstr "直近 %s 日"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:856
+#: mintdeck@bigmalove/lib/deck/panel.js:861
 msgid "磁盘"
 msgstr "ディスク"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:881
-#: mintdeck@bigmalove/lib/deck/panel.js:1253
+#: mintdeck@bigmalove/lib/deck/panel.js:886
+#: mintdeck@bigmalove/lib/deck/panel.js:1199
 msgid "不可用"
 msgstr "利用不可"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:888
+#: mintdeck@bigmalove/lib/deck/panel.js:893
 msgid "温度"
 msgstr "温度"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:889
+#: mintdeck@bigmalove/lib/deck/panel.js:894
 msgid "风扇"
 msgstr "ファン"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:890
+#: mintdeck@bigmalove/lib/deck/panel.js:895
 msgid "频率"
 msgstr "周波数"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:947
+#: mintdeck@bigmalove/lib/deck/panel.js:952
 msgid "暂停"
 msgstr "一時停止"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:947
+#: mintdeck@bigmalove/lib/deck/panel.js:952
 msgid "开始"
 msgstr "開始"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:947
+#: mintdeck@bigmalove/lib/deck/panel.js:952
 msgid "继续"
 msgstr "再開"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:953
+#: mintdeck@bigmalove/lib/deck/panel.js:958
 msgid "跳过"
 msgstr "スキップ"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:955
+#: mintdeck@bigmalove/lib/deck/panel.js:960
 msgid "重置"
 msgstr "リセット"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:978
-#: mintdeck@bigmalove/lib/deck/panel.js:1029
-#: mintdeck@bigmalove/lib/deck/panel.js:1190
+#: mintdeck@bigmalove/lib/deck/panel.js:983
+#: mintdeck@bigmalove/lib/deck/panel.js:1034
+#: mintdeck@bigmalove/lib/deck/panel.js:1136
 msgid "采样中…"
 msgstr "サンプリング中…"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:985
+#: mintdeck@bigmalove/lib/deck/panel.js:990
 msgid "接口"
 msgstr "インターフェース"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:986
+#: mintdeck@bigmalove/lib/deck/panel.js:991
 msgid "已连接"
 msgstr "接続済み"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:986
+#: mintdeck@bigmalove/lib/deck/panel.js:991
 msgid "未连接"
 msgstr "未接続"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:995
+#: mintdeck@bigmalove/lib/deck/panel.js:1000
 msgid "延迟"
 msgstr "レイテンシー"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:998
+#: mintdeck@bigmalove/lib/deck/panel.js:1003
 msgid "丢包 %s"
 msgstr "%s ロス"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1006
+#: mintdeck@bigmalove/lib/deck/panel.js:1011
 msgid "公网 IP"
 msgstr "グローバル IP"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1013
+#: mintdeck@bigmalove/lib/deck/panel.js:1018
 msgid "速率"
 msgstr "速度"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1019
+#: mintdeck@bigmalove/lib/deck/panel.js:1024
 msgid "网络探测不可用"
 msgstr "ネットワーク計測は利用不可"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1019
+#: mintdeck@bigmalove/lib/deck/panel.js:1024
 msgid "每 %s 秒采样"
 msgstr "%s 秒ごとに取得"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1052
+#: mintdeck@bigmalove/lib/deck/panel.js:1057
 msgid "一"
 msgstr "月"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1052
+#: mintdeck@bigmalove/lib/deck/panel.js:1057
 msgid "二"
 msgstr "火"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1052
+#: mintdeck@bigmalove/lib/deck/panel.js:1057
 msgid "三"
 msgstr "水"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1052
+#: mintdeck@bigmalove/lib/deck/panel.js:1057
 msgid "四"
 msgstr "木"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1052
+#: mintdeck@bigmalove/lib/deck/panel.js:1057
 msgid "五"
 msgstr "金"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1052
+#: mintdeck@bigmalove/lib/deck/panel.js:1057
 msgid "六"
 msgstr "土"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1052
+#: mintdeck@bigmalove/lib/deck/panel.js:1057
 msgid "日"
 msgstr "日"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1092
+#: mintdeck@bigmalove/lib/deck/panel.js:1097
 msgid "没有日程"
 msgstr "予定はありません"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1103
+#: mintdeck@bigmalove/lib/deck/panel.js:1108
 msgid "接下来"
 msgstr "この先"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1107
+#: mintdeck@bigmalove/lib/deck/panel.js:1112
 msgid "未来一周没有日程"
 msgstr "1 週間の予定はありません"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1197
+#: mintdeck@bigmalove/lib/deck/panel.js:1143
 msgid "下载"
 msgstr "ダウンロード"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1206
+#: mintdeck@bigmalove/lib/deck/panel.js:1152
 msgid "没有进行中的任务"
 msgstr "進行中のタスクはありません"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1234
+#: mintdeck@bigmalove/lib/deck/panel.js:1180
 msgid "容器"
 msgstr "コンテナ"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1237
+#: mintdeck@bigmalove/lib/deck/panel.js:1183
 msgid "%s 运行 / %s 总共"
 msgstr "%s 稼働 / 全 %s"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1244
+#: mintdeck@bigmalove/lib/deck/panel.js:1190
 msgid "未检测到容器运行时"
 msgstr "コンテナランタイムが見つかりません"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1250
+#: mintdeck@bigmalove/lib/deck/panel.js:1196
 msgid "失败的单元"
 msgstr "失敗ユニット"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1255
+#: mintdeck@bigmalove/lib/deck/panel.js:1201
 msgid "没有失败的单元"
 msgstr "失敗ユニットはありません"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1258
+#: mintdeck@bigmalove/lib/deck/panel.js:1204
 msgid "%s 个"
 msgstr "%s 件"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1345
+#: mintdeck@bigmalove/lib/deck/panel.js:1291
 msgid "专注"
 msgstr "集中"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1346 settings-schema.json
+#: mintdeck@bigmalove/lib/deck/panel.js:1292 settings-schema.json
 msgid "短休息"
 msgstr "短い休憩"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1347 settings-schema.json
+#: mintdeck@bigmalove/lib/deck/panel.js:1293 settings-schema.json
 msgid "长休息"
 msgstr "長い休憩"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:1348
+#: mintdeck@bigmalove/lib/deck/panel.js:1294
 msgid "未开始"
 msgstr "未開始"
 
@@ -649,6 +649,10 @@ msgstr "時刻を表示"
 #: settings-schema.json
 msgid "显示系统读数"
 msgstr "システム値を表示"
+
+#: settings-schema.json
+msgid "收起时显示天气（需在「日程与天气」里填城市）"
+msgstr "收起時に天気を表示（「予定と天気」で都市を設定）"
 
 #: settings-schema.json
 msgid "收起尺寸（自动 = 随显示的内容多少缩放）"
