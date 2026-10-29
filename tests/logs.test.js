@@ -5,7 +5,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const logs = require('../mintdeck@local/lib/core/logs.js');
+const logs = require('../mintdeck@bigmalove/lib/core/logs.js');
 
 // ---- 夹具 ------------------------------------------------------------------
 

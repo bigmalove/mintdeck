@@ -1,7 +1,7 @@
 # MintDeck
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-E5A385?style=flat-square)](LICENSE)
-[![Cinnamon](https://img.shields.io/badge/Cinnamon-5.8%20%7C%206.0%20%7C%206.2%20%7C%206.4%20%7C%206.6-32A852?style=flat-square)](mintdeck@local/metadata.json)
+[![Cinnamon](https://img.shields.io/badge/Cinnamon-5.8%20%7C%206.0%20%7C%206.2%20%7C%206.4%20%7C%206.6-32A852?style=flat-square)](mintdeck@bigmalove/metadata.json)
 [![Tests](https://img.shields.io/badge/tests-138%20passing-2E8B57?style=flat-square)](tests)
 
 A Linux Mint / Cinnamon port of [BrimDeck](https://github.com/MoFeng2223/BrimDeck) (Windows 11, C# + WPF):
@@ -38,6 +38,10 @@ tools/enable.sh      # adds it to the panel (or: System Settings → Applets →
 
 Cinnamon rescans applets only on startup: log out and back in, or press `Alt+F2`, type `r`, Enter.
 
+The applet's uuid is `mintdeck@bigmalove` and it follows the Cinnamon Spices layout, so once the
+submission to [linuxmint/cinnamon-spices-applets](https://github.com/linuxmint/cinnamon-spices-applets)
+is merged it can be installed from System Settings → Applets → Download without this script.
+
 Uninstall: `tools/uninstall.sh`.
 
 ## Features
@@ -58,7 +62,7 @@ runtime in the applet settings (the island is drawn with St/cairo, so no shell r
 ## Layout
 
 ```
-mintdeck@local/            # the applet (symlinked into ~/.local/share/cinnamon/applets/)
+mintdeck@bigmalove/            # the applet (symlinked into ~/.local/share/cinnamon/applets/)
 ├── applet.js              # lifecycle, hover state machine, settings binding
 ├── settings-schema.json   # settings (Cinnamon renders the config UI)
 ├── lib/core/              # pure JS: geometry, theme, log parsing, providers, pricing, i18n (node-testable)
@@ -68,7 +72,7 @@ mintdeck@local/            # the applet (symlinked into ~/.local/share/cinnamon/
 ├── themes/                # 8 themes (same format as BrimDeck, interchangeable)
 └── fonts/                 # 4 OFL fonts used by the clock styles
 
-po/                        # translation source: mintdeck@local.pot + en / zh_TW / ja
+po/                        # translation source: mintdeck@bigmalove.pot + en / zh_TW / ja
 tools/                     # install / enable / uninstall / dev-reload / i18n pipeline
 tests/                     # node --test: geometry, auto-size, themes, logs, providers, procfs, lyrics, i18n
 ```

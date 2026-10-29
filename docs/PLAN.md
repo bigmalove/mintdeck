@@ -11,7 +11,7 @@
 
 | 决策 | 结论 |
 | --- | --- |
-| 形态 | **Cinnamon Applet**（`mintdeck@local`），不是 Desklet（桌面层会被窗口盖住）、不是 Electron（内存与插件身份都不对） |
+| 形态 | **Cinnamon Applet**（`mintdeck@bigmalove`），不是 Desklet（桌面层会被窗口盖住）、不是 Electron（内存与插件身份都不对） |
 | 渲染 | 单进程 **CinnamonJS（cjs 115.2）+ St/Clutter 自绘**，浮层用官方 `Main.layoutManager.addChrome()` 挂到 chrome 层；GTK3 独立进程只作为降级备选（已实测可行） |
 | 数据层 | 上游 `BrimDeck.Core` 的业务模型（Quota / TokenEntry / ProviderSnapshot / 主题 JSON / 几何参数）**原样移植语义**，Win32 通道换成 procfs + MPRIS + 本地 JSONL + HTTPS |
 | 视觉 | 主题文件格式与上游 **完全兼容**（同一份 `theme.json` 两边都能读），几何常数逐值照抄（notch 238×32 / inset 30 / 肩 16 / 角 12 …） |
@@ -146,7 +146,7 @@ class MintDeck extends Applet.Applet {
 ## 4. 目录结构（Cinnamon spice 规范）
 
 ```
-mintdeck@local/                 # uuid 目录，装到 ~/.local/share/cinnamon/applets/
+mintdeck@bigmalove/                 # uuid 目录，装到 ~/.local/share/cinnamon/applets/
 ├── metadata.json               # uuid/name/description/icon/max-instances
 ├── applet.js                   # 入口：Applet 子类 + 生命周期
 ├── settings-schema.json        # GSettings 键（applet 框架自动编译）
@@ -182,7 +182,7 @@ mintdeck@local/                 # uuid 目录，装到 ~/.local/share/cinnamon/a
 
 ```bash
 # 开发期：软链到 applet 目录，改完按 Alt+F2 → r 重启 Cinnamon
-ln -s "$PWD/mintdeck@local" ~/.local/share/cinnamon/applets/mintdeck@local
+ln -s "$PWD/mintdeck@bigmalove" ~/.local/share/cinnamon/applets/mintdeck@bigmalove
 # 发布：打 zip，用户拖进「系统设置 → 小程序 → 添加」
 ```
 
@@ -374,7 +374,7 @@ proxy.call('PlayPause', null, Gio.DBusCallFlags.NONE, -1, null, null);  // Next/
 ```
 
 - **设置界面不用自己画**：Cinnamon 的 `Settings.AppletSettings(this, uuid, instance_id)` + `settings-schema.json`（`layout → page → section → keys`，控件类型 `checkbox/spinbutton/colorchooser/combobox/scale/textentry`）会自动生成 applet 配置对话框（系统参考 `/usr/share/cinnamon/applets/settings-example@cinnamon.org`）。上游 1114 行的 `SettingsWindow.cs` 只有「主题编辑器 / 列编辑器 / 价格表编辑」这三块需要自绘。
-- 存储：**Cinnamon 自己的机制** —— `settings-schema.json` 运行时解析，值落 `~/.config/cinnamon/spices/mintdeck@local/<instance>.json`（`settings.js:928`），`Settings.AppletSettings.bind()` 双向绑定。不需要 `glib-compile-schemas`，也不需要 GSettings schema 安装步骤。
+- 存储：**Cinnamon 自己的机制** —— `settings-schema.json` 运行时解析，值落 `~/.config/cinnamon/spices/mintdeck@bigmalove/<instance>.json`（`settings.js:928`），`Settings.AppletSettings.bind()` 双向绑定。不需要 `glib-compile-schemas`，也不需要 GSettings schema 安装步骤。
 - 我自己只额外维护 `~/.config/mintdeck/`：`columns.json`（列配置，schema 表达不了嵌套对象）、`themes/`（用户主题文件）、`cache/`（封面、价目表）、`secrets.json`（600 权限）
 - 密钥：优先 `libsecret`（`Secret.Schema`），不可用时写 600 权限文件并在 UI 标注「明文保存」
 
@@ -427,7 +427,7 @@ proxy.call('PlayPause', null, Gio.DBusCallFlags.NONE, -1, null, null);  // Next/
 ## 12. 下一步（等确认后开工）
 
 1. 先做 **M0 的 3 项实测**（§3 末尾），把两处不确定钉死（hover 桥接、`@font-face`、GTop 耗时）；
-2. 拉 `mintdeck@local` 骨架 + `lib/core/geometry.js`（纯逻辑，可 node 断言对齐上游常数）；
+2. 拉 `mintdeck@bigmalove` 骨架 + `lib/core/geometry.js`（纯逻辑，可 node 断言对齐上游常数）；
 3. 用你本机真实数据跑通 Claude + DSH 两列的端到端（M1 的一半）。
 
 **你自己就能验证的三条命令**（不装任何东西）：

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 把 mintdeck@local 加进面板（idempotent）。已有就什么都不做。
+# 把 mintdeck@bigmalove 加进面板（idempotent）。已有就什么都不做。
 # 会先备份当前的 enabled-applets，便于 tools/uninstall.sh 回滚。
 set -euo pipefail
-UUID="mintdeck@local"
+UUID="mintdeck@bigmalove"
 CUR="$(gsettings get org.cinnamon enabled-applets)"
 if printf '%s' "$CUR" | grep -q "$UUID"; then
     echo "already enabled"

@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const sysmon = require('../mintdeck@local/lib/linux/sysmon.js');
+const sysmon = require('../mintdeck@bigmalove/lib/linux/sysmon.js');
 
 // 真实 /proc/meminfo 的片段（本机 32GB + 8GB swap，实测 52.5%–54% 之间浮动）。
 const MEMINFO = [

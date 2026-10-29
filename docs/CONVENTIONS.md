@@ -1,6 +1,6 @@
 # MintDeck 代码约定（子代理必读）
 
-目标产物：Cinnamon applet，uuid `mintdeck@local`，装在 `~/.local/share/cinnamon/applets/mintdeck@local/`。
+目标产物：Cinnamon applet，uuid `mintdeck@bigmalove`，装在 `~/.local/share/cinnamon/applets/mintdeck@bigmalove/`。
 上游参照实现：`/mnt/E/vibecode/mintdeck/src_upstream/`（C# / WPF，只读）。
 方案：`/mnt/E/vibecode/mintdeck/docs/PLAN.md`。
 
@@ -74,5 +74,5 @@ if (typeof module !== 'undefined') module.exports = { SomeConst, resolve };
 ## 6. 禁止
 
 - 不改 `/mnt/E/vibecode/mintdeck/src_upstream/`（只读参照）。
-- 不装 npm 包、不动 git、不写 `/mnt/E/vibecode/mintdeck/mintdeck@local/lib/deck/**`（那部分由主线程负责）。
+- 不装 npm 包、不动 git、不写 `/mnt/E/vibecode/mintdeck/mintdeck@bigmalove/lib/deck/**`（那部分由主线程负责）。
 - 不输出真实 token / cookie / 邮箱；测试夹具用假数据。

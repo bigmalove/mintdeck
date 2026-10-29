@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""从源码里抽出所有界面文案，写成 po/mintdeck@local.pot。
+"""从源码里抽出所有界面文案，写成 po/mintdeck@bigmalove.pot。
 
 为什么自己写而不是 xgettext：
   · 文案分布在三类文件里 —— JS（_(...) 与 n_(...) 调用）、settings-schema.json（description /
@@ -15,8 +15,8 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APPLET = os.path.join(ROOT, 'mintdeck@local')
-POT = os.path.join(ROOT, 'po', 'mintdeck@local.pot')
+APPLET = os.path.join(ROOT, 'mintdeck@bigmalove')
+POT = os.path.join(ROOT, 'po', 'mintdeck@bigmalove.pot')
 
 # 这两个文件是工具链产物/查表实现，里面的中文字符串不是文案
 SKIP_FILES = {
@@ -83,6 +83,10 @@ def add_js(catalog, path):
         catalog.add(js_unescape(m.group(3)), None, '%s:%d' % (rel, line))
 
 
+def has_cjk(text):
+    return any('\u4e00' <= ch <= '\u9fff' for ch in text)
+
+
 def add_json_strings(catalog, path, rel):
     """settings-schema.json / metadata.json：值本身就是文案（不是 key-value 里的 key）。"""
     with open(path, encoding='utf-8') as fh:
@@ -103,9 +107,12 @@ def add_json_strings(catalog, path, rel):
                 walk(v, key)
 
     if rel.endswith('metadata.json'):
+        # metadata.json 的 name / description 同时要满足 Spices 仓库「全 ASCII」的校验，
+        # 所以源语言就是英文：不含中日韩字符的值不需要翻译，也不进 pot。
         for k in ('name', 'description'):
-            if isinstance(data.get(k), str):
-                catalog.add(data[k], None, rel)
+            v = data.get(k)
+            if isinstance(v, str) and has_cjk(v):
+                catalog.add(v, None, rel)
         return
     walk(data)
 
@@ -119,8 +126,11 @@ def write_pot(catalog):
         '# MintDeck 界面文案。由 tools/i18n-extract.py 生成，不要手改；改源码后重新生成。',
         'msgid ""',
         'msgstr ""',
-        '"Project-Id-Version: mintdeck@local\\n"',
+        '"Project-Id-Version: mintdeck@bigmalove\\n"',
         '"Report-Msgid-Bugs-To: \\n"',
+        '"PO-Revision-Date: 2026-10-29 13:20+0800\\n"',
+        '"Last-Translator: bigmalove <125801848+bigmalove@users.noreply.github.com>\\n"',
+        '"Language-Team: MintDeck translators\\n"',
         '"MIME-Version: 1.0\\n"',
         '"Content-Type: text/plain; charset=UTF-8\\n"',
         '"Content-Transfer-Encoding: 8bit\\n"',

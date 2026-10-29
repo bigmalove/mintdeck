@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """po/*.po → 运行期用的两样东西：
 
-  1. mintdeck@local/lib/core/i18nData.js —— 画布文字（St/cairo 自绘的部分）查的词典，
+  1. mintdeck@bigmalove/lib/core/i18nData.js —— 画布文字（St/cairo 自绘的部分）查的词典，
      由 applet.js 注入进 lib/core/i18n.js。换语言立刻生效，不用重启 shell；
-  2. po/build/<locale>/LC_MESSAGES/mintdeck@local.mo —— gettext 用的二进制，
+  2. po/build/<locale>/LC_MESSAGES/mintdeck@bigmalove.mo —— gettext 用的二进制，
      给 xlet-settings（设置窗口）和 Cinnamon 的小程序列表翻译用。工具的 install.sh 会把它
      拷到 ~/.local/share/locale/，Cinnamon 的 domain 就是 uuid（appletManager.js:617）。
 
@@ -19,10 +19,11 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PO_DIR = os.path.join(ROOT, 'po')
-POT = os.path.join(PO_DIR, 'mintdeck@local.pot')
-JS_OUT = os.path.join(ROOT, 'mintdeck@local', 'lib', 'core', 'i18nData.js')
+REVISION_DATE = '2026-10-29 13:20+0800'
+POT = os.path.join(PO_DIR, 'mintdeck@bigmalove.pot')
+JS_OUT = os.path.join(ROOT, 'mintdeck@bigmalove', 'lib', 'core', 'i18nData.js')
 MO_ROOT = os.path.join(PO_DIR, 'build')
-DOMAIN = 'mintdeck@local'
+DOMAIN = 'mintdeck@bigmalove'
 
 # 有词典的语言。zh_CN 是 msgid 本身，不需要 po。
 LOCALES = {
@@ -212,7 +213,10 @@ def init_po():
             '# 由 tools/i18n-build.py --init 生成；改完跑 tools/i18n-build.py 生成 .mo 与 i18nData.js。',
             'msgid ""',
             'msgstr ""',
-            '"Project-Id-Version: mintdeck@local\\n"',
+            '"Project-Id-Version: mintdeck@bigmalove\\n"',
+            '"PO-Revision-Date: %s\\n"' % REVISION_DATE,
+            '"Last-Translator: bigmalove <125801848+bigmalove@users.noreply.github.com>\\n"',
+            '"Language-Team: MintDeck translators\\n"',
             '"Language: %s\\n"' % locale,
             '"MIME-Version: 1.0\\n"',
             '"Content-Type: text/plain; charset=UTF-8\\n"',

@@ -85,9 +85,9 @@ global.imports = {
     },
   },
   lib: {
-    ui: { draw: require(path.join(__dirname, '..', 'mintdeck@local', 'lib', 'ui', 'draw.js')) },
+    ui: { draw: require(path.join(__dirname, '..', 'mintdeck@bigmalove', 'lib', 'ui', 'draw.js')) },
     core: {
-      i18n: require(path.join(__dirname, '..', 'mintdeck@local', 'lib', 'core', 'i18n.js')),
+      i18n: require(path.join(__dirname, '..', 'mintdeck@bigmalove', 'lib', 'core', 'i18n.js')),
       providers: {
         claude: { parseSession: () => null, summarize: () => ({}) },
         dsh: { parseSession: () => null, summarize: () => ({}) },
@@ -98,7 +98,7 @@ global.imports = {
   },
 };
 
-const Data = require(path.join(__dirname, '..', 'mintdeck@local', 'lib', 'deck', 'data.js'));
+const Data = require(path.join(__dirname, '..', 'mintdeck@bigmalove', 'lib', 'deck', 'data.js'));
 if (!hadImports) delete global.imports;
 
 test('listFiles 递归收集 .zstd，并且每个目录的枚举器都被 close', () => {

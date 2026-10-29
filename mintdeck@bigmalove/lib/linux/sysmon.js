@@ -19,8 +19,12 @@ const CLK_TCK = 100;
 const VIRTUAL_PREFIXES = ['veth', 'docker', 'br-', 'virbr'];
 const VIRTUAL_EXACT = ['lo', 'meta'];   // meta 小写比较：本机 tun 名就是字面量 Meta
 
-const NVIDIA_CMD =
-  'nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits';
+// argv 形式：不拼 shell 字符串（与 Cinnamon 自身 util.killall 的写法一致）
+const NVIDIA_ARGV = [
+  'nvidia-smi',
+  '--query-gpu=utilization.gpu,memory.used,memory.total',
+  '--format=csv,noheader,nounits'
+];
 
 // ---------------------------------------------------------------- GI 惰性句柄
 
@@ -248,7 +252,7 @@ function nvidiaGpu() {
   const GLib = gLib();
   if (!GLib) return null;
   try {
-    const result = GLib.spawn_command_line_sync(NVIDIA_CMD);
+    const result = GLib.spawn_sync(null, NVIDIA_ARGV, null, GLib.SpawnFlags.SEARCH_PATH, null);
     if (!result || !result[0]) return null;
     const stdout = decode(result[1]);
     const line = stdout.split('\n')[0] || '';

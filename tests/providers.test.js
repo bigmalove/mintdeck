@@ -5,9 +5,9 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const claude = require('../mintdeck@local/lib/core/providers/claude.js');
-const dsh = require('../mintdeck@local/lib/core/providers/dsh.js');
-const pricing = require('../mintdeck@local/lib/core/pricing.js');
+const claude = require('../mintdeck@bigmalove/lib/core/providers/claude.js');
+const dsh = require('../mintdeck@bigmalove/lib/core/providers/dsh.js');
+const pricing = require('../mintdeck@bigmalove/lib/core/pricing.js');
 
 const DAY = 86400000;
 // 固定「现在」= 本地 2026-10-28 12:00，测试不依赖运行时钟。

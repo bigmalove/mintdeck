@@ -2,7 +2,7 @@
 'use strict';
 
 // 主题：宽容 JSON 解析、base 继承、对比度强制、颜色换算。
-// 期望值来自上游源码（行号写在注释里）与本机 mintdeck@local/themes/*.json 的实际内容，
+// 期望值来自上游源码（行号写在注释里）与本机 mintdeck@bigmalove/themes/*.json 的实际内容，
 // 不是「跑一遍抄结果」。跑法：cd /mnt/E/vibecode/mintdeck && node --test tests/
 
 const test = require('node:test');
@@ -10,9 +10,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const T = require('../mintdeck@local/lib/core/theme.js');
+const T = require('../mintdeck@bigmalove/lib/core/theme.js');
 
-const THEMES_DIR = path.join(__dirname, '..', 'mintdeck@local', 'themes');
+const THEMES_DIR = path.join(__dirname, '..', 'mintdeck@bigmalove', 'themes');
 const BUILT_INS = ['dark', 'light', 'one-dark-pro', 'github-dark', 'github-light', 'dracula', 'night-owl', 'cyberpunk-edgerunners'];
 
 function readTheme(id) {

@@ -102,6 +102,19 @@ function listFiles(dirPath, suffix, out) {
     return out;
 }
 
+// 外部命令一律走 argv 形式（GLib.spawn_sync），不拼 shell 字符串：
+//   · 路径里出现空格、引号、$ 也不用转义，不会被 shell 解释；
+//   · SEARCH_PATH 让 'zstd' / 'python3' 按 PATH 解析，找不到时 spawn 直接抛，调用方按「不可用」处理。
+function spawnCapture(argv) {
+    try {
+        const res = GLib.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null);
+        if (!res || !res[0]) return null;
+        return res[1] || null;
+    } catch (e) {
+        return null;
+    }
+}
+
 function readText(path) {
     try {
         const [ok, bytes] = GLib.file_get_contents(path);
@@ -113,9 +126,9 @@ function readText(path) {
 }
 
 function readZstd(path) {
+    const stdout = spawnCapture(['zstd', '-dc', '--', path]);
+    if (!stdout) return null;
     try {
-        const [ok, stdout] = GLib.spawn_command_line_sync('zstd -dc -- ' + GLib.shell_quote(path));
-        if (!ok || !stdout) return null;
         return new TextDecoder('utf-8').decode(stdout);
     } catch (e) {
         return null;
@@ -154,11 +167,9 @@ function readWorkbuddy() {
     ].join('\n');
 
     let out = null;
-    try {
-        const [ok, stdout] = GLib.spawn_command_line_sync('python3 -c ' + GLib.shell_quote(script));
-        if (ok && stdout) out = JSON.parse(new TextDecoder('utf-8').decode(stdout));
-    } catch (e) {
-        out = null;
+    const stdout = spawnCapture(['python3', '-c', script]);
+    if (stdout) {
+        try { out = JSON.parse(new TextDecoder('utf-8').decode(stdout)); } catch (e) { out = null; }
     }
     if (!out) return null;
     _wbCache = { at: Date.now(), data: out };

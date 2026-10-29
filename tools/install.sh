@@ -4,8 +4,8 @@
 #       tools/install.sh --copy   复制（发布/打包用）
 set -euo pipefail
 
-SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/mintdeck@local"
-DEST="$HOME/.local/share/cinnamon/applets/mintdeck@local"
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/mintdeck@bigmalove"
+DEST="$HOME/.local/share/cinnamon/applets/mintdeck@bigmalove"
 MODE="${1:-link}"
 
 mkdir -p "$(dirname "$DEST")"
@@ -32,12 +32,12 @@ echo "fonts  → $FONTDIR"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCDIR="$HOME/.local/share/locale"
 if python3 "$ROOT/tools/i18n-build.py" --mo >/dev/null 2>&1; then
-    for mo in "$ROOT/po/build"/*/LC_MESSAGES/mintdeck@local.mo; do
+    for mo in "$ROOT/po/build"/*/LC_MESSAGES/mintdeck@bigmalove.mo; do
         [ -f "$mo" ] || continue
         lang="$(basename "$(dirname "$(dirname "$mo")")")"
         mkdir -p "$LOCDIR/$lang/LC_MESSAGES"
-        cp -f "$mo" "$LOCDIR/$lang/LC_MESSAGES/mintdeck@local.mo"
-        echo "i18n   → $LOCDIR/$lang/LC_MESSAGES/mintdeck@local.mo"
+        cp -f "$mo" "$LOCDIR/$lang/LC_MESSAGES/mintdeck@bigmalove.mo"
+        echo "i18n   → $LOCDIR/$lang/LC_MESSAGES/mintdeck@bigmalove.mo"
     done
 else
     echo "i18n   → 跳过（缺 msgfmt 或 python3；设置窗口会保持中文，悬浮岛仍可切换语言）"

@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
-const GEO = require('../mintdeck@local/lib/core/geometry.js');
+const GEO = require('../mintdeck@bigmalove/lib/core/geometry.js');
 
 // ---- GI 桩：只提供 island.js 顶层与构造函数用到的那些，全部无副作用
 // 先记下装桩前的状态，装完立即撤（见文件末尾的 require 处）
@@ -38,14 +38,14 @@ global.imports = {
   },
   lib: {
     // 真实 draw.js 是纯 JS，直接复用，别再造一份假实现
-    ui: { draw: require(path.join(__dirname, '..', 'mintdeck@local', 'lib', 'ui', 'draw.js')) },
+    ui: { draw: require(path.join(__dirname, '..', 'mintdeck@bigmalove', 'lib', 'ui', 'draw.js')) },
     core: { geometry: GEO }
   }
 };
 
 // 桩只在把 island.js 拉进内存时需要；之后立刻撤掉，否则后面 require 的 lib/linux/*
 // 会把桩里的 imports.gi 当成真的 GJS 环境（lyrics.js 就要写 imports.gi.versions.Soup）。
-const { Island } = require('../mintdeck@local/lib/deck/island.js');
+const { Island } = require('../mintdeck@bigmalove/lib/deck/island.js');
 if (!hadImports) delete global.imports;
 if (!hadStage) delete global.stage;
 

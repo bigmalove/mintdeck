@@ -11,7 +11,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
-const GEO = require('../mintdeck@local/lib/core/geometry.js');
+const GEO = require('../mintdeck@bigmalove/lib/core/geometry.js');
 
 // GI 桩（与 island.test.js 同一套最小实现，只够构造对象）
 const hadImports = 'imports' in global;
@@ -38,12 +38,12 @@ global.imports = {
     PangoCairo: {}
   },
   lib: {
-    ui: { draw: require(path.join(__dirname, '..', 'mintdeck@local', 'lib', 'ui', 'draw.js')) },
+    ui: { draw: require(path.join(__dirname, '..', 'mintdeck@bigmalove', 'lib', 'ui', 'draw.js')) },
     core: { geometry: GEO }
   }
 };
 
-const { Island } = require('../mintdeck@local/lib/deck/island.js');
+const { Island } = require('../mintdeck@bigmalove/lib/deck/island.js');
 if (!hadImports) delete global.imports;
 if (!hadStage) delete global.stage;
 

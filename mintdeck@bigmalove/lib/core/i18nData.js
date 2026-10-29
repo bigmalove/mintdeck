@@ -105,8 +105,6 @@ var CATALOG = {
     "光标所在显示器": "Monitor with the pointer",
     "在面板上显示图标（隐藏后右键悬浮岛可进入设置）": "Show a panel icon (right-click the island for settings when hidden)",
     "全屏时隐藏（全屏下鼠标唤出将不可用）": "Hide in fullscreen (hover-to-open stops working)",
-    "MintDeck": "MintDeck",
-    "屏幕顶部的灵动岛：集中显示 AI 编程工具的额度与用量，以及正在播放的音乐与系统监控。": "A Dynamic Island at the top of the screen: quota and usage for your AI coding tools, plus what is playing and how the system is doing.",
   },
   "ja": {
     "设置…": "設定…",
@@ -206,8 +204,6 @@ var CATALOG = {
     "光标所在显示器": "カーソルのあるディスプレイ",
     "在面板上显示图标（隐藏后右键悬浮岛可进入设置）": "パネルにアイコンを表示（非表示にした場合、フローティングアイランドを右クリックすると設定を開けます）",
     "全屏时隐藏（全屏下鼠标唤出将不可用）": "全画面時に非表示（全画面ではマウスでの呼び出しは使えません）",
-    "MintDeck": "MintDeck",
-    "屏幕顶部的灵动岛：集中显示 AI 编程工具的额度与用量，以及正在播放的音乐与系统监控。": "画面上部のダイナミックアイランド。AI コーディングツールのクォータと使用量、再生中の音楽、システム監視をまとめて表示します。",
   },
   "zh_TW": {
     "设置…": "設定…",
@@ -307,8 +303,6 @@ var CATALOG = {
     "光标所在显示器": "游標所在顯示器",
     "在面板上显示图标（隐藏后右键悬浮岛可进入设置）": "在面板上顯示圖示（隱藏後在懸浮島上按右鍵可進入設定）",
     "全屏时隐藏（全屏下鼠标唤出将不可用）": "全螢幕時隱藏（全螢幕下以滑鼠喚出將無法使用）",
-    "MintDeck": "MintDeck",
-    "屏幕顶部的灵动岛：集中显示 AI 编程工具的额度与用量，以及正在播放的音乐与系统监控。": "螢幕頂端的動態島：集中顯示 AI 程式設計工具的額度與用量，以及正在播放的音樂與系統監控。",
   }
 };
 

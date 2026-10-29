@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 卸载：从面板移除 + 删除软链/目录 + 恢复 enabled-applets 备份
 set -euo pipefail
-UUID="mintdeck@local"
+UUID="mintdeck@bigmalove"
 CUR="$(gsettings get org.cinnamon enabled-applets)"
 NEW="$(python3 - "$CUR" "$UUID" <<'PY'
 import ast, sys

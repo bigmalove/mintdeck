@@ -1,8 +1,0 @@
-{
-  "uuid": "mintdeck@local",
-  "name": "MintDeck",
-  "description": "屏幕顶部的灵动岛：集中显示 AI 编程工具的额度与用量，以及正在播放的音乐与系统监控。",
-  "icon": "icon.png",
-  "max-instances": "1",
-  "cinnamon-version": ["5.8", "6.0", "6.2", "6.4", "6.6"]
-}

@@ -19,7 +19,13 @@ const Gio = imports.gi.Gio;
 const St = imports.gi.St;
 const Clutter = imports.gi.Clutter;
 
-const UUID = 'mintdeck@local';
+const UUID = 'mintdeck@bigmalove';
+
+// gettext 域与 Cinnamon 的惯例一致：Spices 安装时会把 po 编成 .mo 放到 ~/.local/share/locale。
+// 悬浮岛/面板的文案不走 gettext（自绘 UI 需要「换语言立即生效」，见 lib/core/i18n.js），
+// 但设置窗口与「小程序」列表由 xlet-settings 用 gettext 渲染，域必须是 uuid。
+const Gettext = imports.gettext;
+Gettext.bindtextdomain(UUID, GLib.get_home_dir() + '/.local/share/locale');
 
 // 本 applet 的目录：优先问 Cinnamon（支持任意安装位置），退回用户目录
 let BASE = null;

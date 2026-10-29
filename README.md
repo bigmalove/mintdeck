@@ -1,7 +1,7 @@
 # MintDeck
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-E5A385?style=flat-square)](LICENSE)
-[![Cinnamon](https://img.shields.io/badge/Cinnamon-5.8%20%7C%206.0%20%7C%206.2%20%7C%206.4%20%7C%206.6-32A852?style=flat-square)](mintdeck@local/metadata.json)
+[![Cinnamon](https://img.shields.io/badge/Cinnamon-5.8%20%7C%206.0%20%7C%206.2%20%7C%206.4%20%7C%206.6-32A852?style=flat-square)](mintdeck@bigmalove/metadata.json)
 [![Tests](https://img.shields.io/badge/tests-138%20passing-2E8B57?style=flat-square)](tests)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-339933?style=flat-square&logo=node.js&logoColor=white)](tests)
 
@@ -42,6 +42,10 @@ tools/enable.sh           # 加进面板（也可用「系统设置 → 小程�
 ```
 
 装完屏幕顶部中央就会出现刘海。首次添加 applet 需要 Cinnamon 重新扫描一次：注销重登，或按 `Alt+F2` 输入 `r` 回车。
+
+uuid 是 `mintdeck@bigmalove`，已按 Cinnamon Spices 的目录规范提交到
+[linuxmint/cinnamon-spices-applets](https://github.com/linuxmint/cinnamon-spices-applets)：
+合并后可以直接在「系统设置 → 小程序 → 获取更多」里装，不用 `tools/install.sh`。
 
 卸载：`tools/uninstall.sh`
 
@@ -90,7 +94,7 @@ tools/enable.sh           # 加进面板（也可用「系统设置 → 小程�
 - 悬浮岛、展开面板、右键菜单是 applet 自己用 St/cairo 画的，译文查 `lib/core/i18nData.js`，
   **在设置里换语言立即生效**，不用重启 Cinnamon，也不用改系统 locale。
 - 设置窗口与小程序列表里的名字/简介由 Cinnamon 的 `xlet-settings`（Python）渲染，走 gettext：
-  同一批 po 编出的 `.mo` 由 `tools/install.sh` 装到 `~/.local/share/locale/<locale>/LC_MESSAGES/mintdeck@local.mo`。
+  同一批 po 编出的 `.mo` 由 `tools/install.sh` 装到 `~/.local/share/locale/<locale>/LC_MESSAGES/mintdeck@bigmalove.mo`。
 - 文案只有一份来源 `po/*.po`：msgid 就是简体中文原文，`tools/i18n-build.py` 一次生成
   `i18nData.js`（画布用）与 `.mo`（gettext 用）。细节与「加一门语言」的步骤见
   [docs/I18N.md](docs/I18N.md)。
@@ -129,7 +133,7 @@ tools/i18n.sh build             # 改过文案或 po 之后：重生成 i18nData
 目录：
 
 ```
-mintdeck@local/            # applet 本体（安装时软链到 ~/.local/share/cinnamon/applets/）
+mintdeck@bigmalove/            # applet 本体（安装时软链到 ~/.local/share/cinnamon/applets/）
 ├── applet.js              # 生命周期、hover 状态机、设置绑定
 ├── settings-schema.json   # 设置项（Cinnamon 自动生成配置界面）
 ├── lib/core/              # 纯 JS：几何、主题、日志解析、供应商、计价、i18n（node 可测）
@@ -139,7 +143,7 @@ mintdeck@local/            # applet 本体（安装时软链到 ~/.local/share/c
 ├── themes/                # 8 套主题（与 BrimDeck 同格式，可直接互换）
 └── fonts/                 # 4 个 OFL 字体（时钟样式用）
 
-po/                        # 翻译源：mintdeck@local.pot + en / zh_TW / ja
+po/                        # 翻译源：mintdeck@bigmalove.pot + en / zh_TW / ja
 tools/i18n-*.py            # 抽 msgid → pot、pot → i18nData.js + .mo
 ```
 

@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const lyrics = require('../mintdeck@local/lib/linux/lyrics.js');
+const lyrics = require('../mintdeck@bigmalove/lib/linux/lyrics.js');
 
 // 取自真实 lrclib 响应的形状（syncedLyrics），外加一份网易云常见的多时间戳行。
 const LRC = [

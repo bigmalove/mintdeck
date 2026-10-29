@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const G = require('../mintdeck@local/lib/core/geometry.js');
+const G = require('../mintdeck@bigmalove/lib/core/geometry.js');
 
 const MONITOR = { x: 0, y: 0, width: 1920, height: 1080 };
 const WORK = { x: 0, y: 30, width: 1920, height: 1050 };

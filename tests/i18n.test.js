@@ -13,7 +13,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const APPLET = path.join(ROOT, 'mintdeck@local');
+const APPLET = path.join(ROOT, 'mintdeck@bigmalove');
 const I18n = require(path.join(APPLET, 'lib', 'core', 'i18n.js'));
 const Data = require(path.join(APPLET, 'lib', 'core', 'i18nData.js'));
 
@@ -137,8 +137,11 @@ function collectMsgids() {
   })(schema, null);
 
   // 小程序列表里的名字与简介（ExtensionCore / xlet-settings 也是拿 uuid 当 domain 翻译的）
+  // metadata.json 的 name / description 要满足 Spices 的「全 ASCII」校验，源语言即英文：
+  // 不含中日韩字符的值不需要翻译（与 tools/i18n-extract.py 的规则一致）
+  const CJK = /[\u4e00-\u9fff]/;
   const meta = JSON.parse(fs.readFileSync(path.join(APPLET, 'metadata.json'), 'utf8'));
-  for (const k of ['name', 'description']) if (typeof meta[k] === 'string') msgids.set(meta[k], 'metadata.json');
+  for (const k of ['name', 'description']) if (typeof meta[k] === 'string' && CJK.test(meta[k])) msgids.set(meta[k], 'metadata.json');
 
   return msgids;
 }
