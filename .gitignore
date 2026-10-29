@@ -1,0 +1,19 @@
+# 上游参照实现（BrimDeck C# 源码克隆，只读参照，不随本仓库分发）
+src_upstream/
+
+# i18n 构建产物
+po/build/
+*.mo
+mintdeck@local/locale/
+
+# 本地缓存 / 日志
+*.log
+.cache/
+node_modules/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,26 @@
+MintDeck
+Copyright 2026 MintDeck contributors
+
+This product is a derivative work of BrimDeck
+(https://github.com/MoFeng2223/BrimDeck), Copyright the BrimDeck authors,
+licensed under the Apache License, Version 2.0.
+
+Geometry parameters, theme file format and data models follow the upstream
+BrimDeck implementation; the Windows-specific transport layers (SMTC, DPAPI,
+PDH, CDP) are replaced with Linux equivalents (MPRIS, procfs, JSONL, libsoup),
+which are original to this project.
+
+Third-party assets
+------------------
+
+Bundled fonts (SIL Open Font License 1.1), see mintdeck@local/fonts/:
+  * Orbitron — Copyright 2018 The Orbitron Project Authors
+  * Bebas Neue — Copyright 2010 Ryoichi Tsunekawa / Dharma Type
+  * Unbounded — Copyright 2022 The Unbounded Project Authors
+  * Instrument Serif — Copyright 2022 The Instrument Serif Project Authors
+
+The system-monitor page colour scheme is adapted from ftop
+(https://github.com/Nongfsq/ftop) by Nongfsq, MIT License.
+
+Cinnamon, Cinnamon Spices and St/Clutter are part of the Cinnamon project and
+are used through their public extension APIs.
