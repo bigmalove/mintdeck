@@ -21,6 +21,9 @@ const Clutter = imports.gi.Clutter;
 
 const UUID = 'mintdeck@bigmalove';
 
+// 快捷键在 KeybindingManager 里的名字（同一 uuid 下唯一即可）
+const HOTKEY_NAME = 'toggle-island';
+
 // gettext 域与 Cinnamon 的惯例一致：Spices 安装时会把 po 编成 .mo 放到 ~/.local/share/locale。
 // 悬浮岛/面板的文案不走 gettext（自绘 UI 需要「换语言立即生效」，见 lib/core/i18n.js），
 // 但设置窗口与「小程序」列表由 xlet-settings 用 gettext 渲染，域必须是 uuid。
@@ -86,6 +89,7 @@ class MintDeckApplet extends Applet.Applet {
         s.bind('collapsedSize', 'v_collapsedSize', () => this._reload());
         s.bind('openDelay', 'v_openDelay', () => {});
         s.bind('closeDelay', 'v_closeDelay', () => {});
+        s.bind('hotkeyToggle', 'v_hotkeyToggle', () => this._applyHotkey());
         s.bind('defaultPage', 'v_defaultPage', () => this._panel.setPage(this.v_defaultPage));
         s.bind('monitor', 'v_monitor', () => this._reload());
         s.bind('showPanelIcon', 'v_showPanelIcon', () => this._applyPanelIcon());
@@ -117,6 +121,7 @@ class MintDeckApplet extends Applet.Applet {
 
         this._buildMenu();
         this._wireEvents();
+        this._applyHotkey();
         this._rebuildChrome();
         this._reload();
         this._startClock();
@@ -321,6 +326,30 @@ class MintDeckApplet extends Applet.Applet {
         });
     }
 
+    // ------------------------------------------------------------ 快捷键
+
+    // 设置里的「展开或收起面板」：Cinnamon 6 的 xlet 快捷键走 KeybindingManager.addXletHotKey。
+    // 传空字符串时它自己会把旧绑定摘掉（_removeMatchingXletBindings），所以这里不用分支。
+    // 值有两种形态：schema 默认是空串，xlet-settings 改过之后写的是加速键数组（["<Super>F9"]），
+    // addXletHotKey 认的是 "::" 分隔的字符串，所以数组要先 join。
+    _applyHotkey() {
+        const km = Main.keybindingManager;
+        if (!km) return false;      // Main 还没装好，on_applet_added_to_panel 里会再调一次
+        const raw = this.v_hotkeyToggle;
+        const accel = Array.isArray(raw)
+            ? raw.filter(Boolean).join('::')
+            : String(raw || '').trim();
+        try {
+            km.addXletHotKey(this, HOTKEY_NAME, accel, () => this._togglePanel());
+        } catch (e) { global.logError(e); }
+        return false;
+    }
+
+    _togglePanel() {
+        if (this._panel && this._panel.actor && this._panel.actor.visible) this._closePanel();
+        else this._openPanel();
+    }
+
     _scheduleOpen() {
         this._cancelOpen();
         const delay = this.v_openDelay || 0;
@@ -474,16 +503,20 @@ class MintDeckApplet extends Applet.Applet {
         this._startClock();
         this._reload();
         this._applyPanelIcon();
+        this._applyHotkey();   // 构造期 Main 可能还没装好 keybindingManager
         this._startLive();     // 构造期 session bus 可能未就绪，这里兜一次（_startLive 会先停旧的）
     }
 
     on_applet_removed_from_panel() {
         this._cancelOpen();
         this._cancelClose();
+        // 异步子进程（zstd / python3 / nvidia-smi）也要一起收掉：reload 后旧实例不该留着进程
+        try { imports.lib.linux.exec.cancelAll(); } catch (e) { /* 没有就跑不起来，无所谓 */ }
         if (this._clockTimer) { GLib.source_remove(this._clockTimer); this._clockTimer = 0; }
         if (this._refreshTimer) { GLib.source_remove(this._refreshTimer); this._refreshTimer = 0; }
         this._stopLive();
         this._removeChrome();
+        try { Main.keybindingManager.removeXletHotKey(this, HOTKEY_NAME); } catch (e) { /* 没注册过 */ }
         try { this._menu.destroy(); } catch (e) { /* ignore */ }
         try { this._island.destroy(); } catch (e) { /* ignore */ }
         try { this._panel.destroy(); } catch (e) { /* ignore */ }
