@@ -94,6 +94,11 @@ global.imports = {
         workbuddy: { summarize: () => ({}), fmtCredits: (v) => String(v) },
       },
     },
+    // data.js 现在把子进程交给 lib/linux/exec（异步）。node 下没有 imports.gi.Gio，
+    // exec.run 会立刻回调 code:'missing' —— 这些用例本来就不需要真跑命令。
+    linux: {
+      exec: require(path.join(__dirname, '..', 'mintdeck@bigmalove', 'lib', 'linux', 'exec.js')),
+    },
     deck: {},
   },
 };

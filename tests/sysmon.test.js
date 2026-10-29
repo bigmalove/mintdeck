@@ -196,3 +196,31 @@ test('readCpuText/readMeminfoText/readNetDevText：node 里没有 GI，一律返
   assert.equal(sysmon.readMeminfoText(), '');
   assert.equal(sysmon.readNetDevText(), '');
 });
+
+// ---------------------------------------------------------------- GPU（nvidia-smi 异步采样）
+
+test('parseNvidia：本机实测输出 "41, 2547, 10240" 解析成 util/MiB/MiB', () => {
+  // 实测：nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits
+  const g = sysmon.parseNvidia('41, 2547, 10240\n');
+  assert.deepEqual(g, { source: 'nvidia', utilization: 41, memUsedMiB: 2547, memTotalMiB: 10240 });
+});
+
+test('parseNvidia：拿不到三列 / total 为 0 / 空输出，一律 null（无数据不编造 0）', () => {
+  assert.equal(sysmon.parseNvidia(''), null);
+  assert.equal(sysmon.parseNvidia(null), null);
+  assert.equal(sysmon.parseNvidia('41, 2547'), null, '缺 total 列');
+  assert.equal(sysmon.parseNvidia('41, 2547, 0'), null, 'total=0 视为不可用');
+  assert.equal(sysmon.parseNvidia('N/A, N/A, N/A'), null);
+});
+
+test('parseNvidia：占用率越界被夹到 0–100', () => {
+  assert.equal(sysmon.parseNvidia('140, 100, 1024').utilization, 100);
+  assert.equal(sysmon.parseNvidia('-3, 100, 1024').utilization, 0);
+});
+
+test('gpuText：node 里没有 GI，非阻塞返回 source:none（不再同步 spawn）', () => {
+  const g = sysmon.gpuText();
+  assert.equal(g.source, 'none');
+  assert.equal(g.utilization, null);
+  assert.doesNotThrow(() => sysmon.releaseGpu());
+});

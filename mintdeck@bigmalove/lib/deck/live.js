@@ -203,6 +203,7 @@ function startMonitor(applet, onChange) {
             memPercent = mem ? mem.usedPercent : memPercent;
         } catch (e) { }
         try {
+            // 非阻塞：gpuText() 只回上一帧缓存，nvidia-smi 由它自己异步采样（见 sysmon.js refreshGpu）
             const g = Sysmon.gpuText();
             gpu = g && g.source !== 'none' && Number.isFinite(g.utilization) ? Math.round(g.utilization) + '%' : null;
         } catch (e) { }
@@ -219,6 +220,8 @@ function startMonitor(applet, onChange) {
     return function stop() {
         if (fastId) { GLib.source_remove(fastId); fastId = 0; }
         if (slowId) { GLib.source_remove(slowId); slowId = 0; }
+        // 停监控时把还在跑的 nvidia-smi 收掉，别让旧实例的子进程赖着
+        try { Sysmon.releaseGpu(); } catch (e) { }
     };
 }
 

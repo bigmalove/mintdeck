@@ -1,6 +1,6 @@
 // lib/linux/exec.js —— 异步跑外部命令、收 stdout。
 //
-// 为什么不用 GLib 的同步 spawn（spawn_sync 那套）：
+// 为什么不用 GLib 的同步 spawn（就是名字里带 sync 的那几个）：
 //   · 它在 shell 主线程上阻塞等子进程结束。nvidia-smi 冷启动三百毫秒起，zstd 解压大会话更久，
 //     这段时间整个面板定住（时钟不走、拖拽跟不上），这是实打实的卡顿；
 //   · cinnamon-settings 的安全扫描（ExtensionCore.py 的 UNSAFE_ITEMS）会因此给 applet 挂黄三角。

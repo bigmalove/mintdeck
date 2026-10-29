@@ -6,7 +6,7 @@
 // 解析逻辑在 lib/core/providers/*.js（纯 JS，node 可测），这里只负责「找文件 → 读 → 汇总 → 喂给 UI」。
 //
 // 两条性能约束（实测）：218 个 DSH 会话逐个起 zstd 要 5.6s，所以
-//   1) 分片异步跑，每次最多占 30ms，不卡 shell；
+//   1) zstd / python3 全部异步跑（lib/linux/exec），主线程从不等待子进程；
 //   2) 解析结果按 (path, mtime) 缓存到 ~/.cache/mintdeck/usage-cache.json，第二次启动只处理新增会话（实测 18ms）。
 'use strict';
 
@@ -14,6 +14,7 @@ const GLib = imports.gi.GLib;
 const Gio = imports.gi.Gio;
 
 const Draw = imports.lib.ui.draw;
+const Exec = imports.lib.linux.exec;
 const I18n = imports.lib.core.i18n;
 const Claude = imports.lib.core.providers.claude;
 const Dsh = imports.lib.core.providers.dsh;
@@ -30,7 +31,6 @@ const CACHE_DIR = GLib.build_filenamev([GLib.get_user_cache_dir(), 'mintdeck']);
 const CACHE_FILE = GLib.build_filenamev([CACHE_DIR, 'usage-cache.json']);
 const CACHE_VERSION = 1;
 
-const SLICE_MS = 30;           // 单次 idle 回调最多占用
 const DSH_MAX_FILES = 400;
 
 const _files = { claude: {}, dsh: {} };   // path -> {mtime, parsed}
@@ -102,21 +102,11 @@ function listFiles(dirPath, suffix, out) {
     return out;
 }
 
-// 外部命令一律走 argv 形式（GLib.spawn_sync），不拼 shell 字符串：
+// 外部命令一律走 argv 形式（lib/linux/exec → Gio.Subprocess），不拼 shell 字符串：
 //   · 路径里出现空格、引号、$ 也不用转义，不会被 shell 解释；
-//   · SEARCH_PATH 让 'zstd' / 'python3' 按 PATH 解析，找不到时 spawn 直接抛，调用方按「不可用」处理。
-// 注：spawn_sync 的阻塞被两条限制夹住 —— 一次 refresh 只对新增/变更的文件调用，
-// 调用点本身跑在 30ms 一片的 idle 回调里（见 collectDshAsync），超出的部分留给下一帧。
-// argv 形式 + SEARCH_PATH：不拼 shell 字符串，路径里有空格/引号也不会被解释。
-function spawnCapture(argv) {
-    try {
-        const res = GLib.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null);
-        if (!res || !res[0]) return null;
-        return res[1] || null;
-    } catch (e) {
-        return null;
-    }
-}
+//   · 可执行文件按 PATH 解析，不存在时回调直接给 code:'missing'，调用方按「不可用」处理；
+//   · 全异步：zstd 解压大会话动辄几十上百毫秒，同步等会把 shell 主线程按住（面板定住），
+//     也会被 cinnamon-settings 的安全扫描判成「可能卡死」并挂黄三角。
 
 // 单文件同步读的上限由调用方控制：解析按 (path, mtime) 缓存，只在新文件出现时才真的读盘。
 function readText(path) {
@@ -129,14 +119,11 @@ function readText(path) {
     }
 }
 
-function readZstd(path) {
-    const stdout = spawnCapture(['zstd', '-dc', '--', path]);
-    if (!stdout) return null;
-    try {
-        return new TextDecoder('utf-8').decode(stdout);
-    } catch (e) {
-        return null;
-    }
+// 异步解压：onText(文本 | null)
+function readZstd(path, onText) {
+    Exec.run(['zstd', '-dc', '--', path], (text) => {
+        onText(text || null);
+    });
 }
 
 function newestMtime(list) {
@@ -150,14 +137,15 @@ function newestMtime(list) {
 
 // WorkBuddy 的用量在 SQLite 里，而本机没有 sqlite3 CLI —— 用 python3 只读桥（~19ms）。
 // mode=ro 让 sqlite 自己处理 -wal，不会锁库、不会写回。
+// python3 同样是子进程，一样异步跑：读到就缓存 30s。UI 先拿上一帧顶上，回调来了再重画一帧。
 const WB_DB = GLib.build_filenamev([HOME, '.workbuddy', 'workbuddy.db']);
 const WB_SNAPSHOT = GLib.build_filenamev([HOME, '.workbuddy', 'storage', 'skeleton', 'account-snapshot.json']);
-let _wbCache = null;
+const WB_TTL_MS = 30000;
+let _wbCache = null;        // {at, data}
+let _wbWaiters = null;      // 同一时刻只跑一条 python3，后来的调用排队等这一次的结果
 
-function readWorkbuddy() {
-    if (_wbCache && (Date.now() - _wbCache.at) < 30000) return _wbCache.data;
-
-    const script = [
+function workbuddyScript() {
+    return [
         'import sqlite3,json,os',
         'p=' + JSON.stringify(WB_DB),
         'c=sqlite3.connect("file:"+p+"?mode=ro",uri=True)',
@@ -169,15 +157,33 @@ function readWorkbuddy() {
         'except Exception: pass',
         'print(json.dumps({"rows":rows,"snapshot":snap}))'
     ].join('\n');
+}
 
-    let out = null;
-    const stdout = spawnCapture(['python3', '-c', script]);
-    if (stdout) {
-        try { out = JSON.parse(new TextDecoder('utf-8').decode(stdout)); } catch (e) { out = null; }
-    }
-    if (!out) return null;
-    _wbCache = { at: Date.now(), data: out };
-    return out;
+// 缓存里的那一份（可能已经过期）：给「先出帧」用。
+function workbuddySnapshot() {
+    return _wbCache ? _wbCache.data : null;
+}
+
+function workbuddyFresh() {
+    return !!(_wbCache && (Date.now() - _wbCache.at) < WB_TTL_MS);
+}
+
+// 异步取一次，onData(数据 | null)
+function fetchWorkbuddy(onData) {
+    if (_wbWaiters) { _wbWaiters.push(onData); return; }
+    _wbWaiters = [onData];
+    Exec.run(['python3', '-c', workbuddyScript()], (text) => {
+        const waiters = _wbWaiters || [];
+        _wbWaiters = null;
+        let data = null;
+        if (text) {
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+        }
+        if (data) _wbCache = { at: Date.now(), data: data };
+        for (const fn of waiters) {
+            try { fn(data); } catch (e) { /* 单个回调坏了不影响别的 */ }
+        }
+    });
 }
 
 // ---------------------------------------------------------------- 解析
@@ -189,17 +195,6 @@ function parseClaudeFile(f) {
     if (!text) return null;
     const parsed = Claude.parseSession(text, { sessionKey: f.path, mtime: f.mtime });
     _files.claude[f.path] = { mtime: f.mtime, parsed: parsed };
-    _dirty = true;
-    return parsed;
-}
-
-function parseDshFile(f) {
-    const hit = _files.dsh[f.path];
-    if (hit && hit.mtime === f.mtime) return hit.parsed;
-    const text = readZstd(f.path);
-    if (!text) return null;
-    const parsed = Dsh.parseSession(text);
-    _files.dsh[f.path] = { mtime: f.mtime, parsed: parsed };
     _dirty = true;
     return parsed;
 }
@@ -221,7 +216,8 @@ function collectClaudeSync(now) {
 // 没有这个，连点「重新读取数据」或连切语言会同时跑好几条扫描链（每条都枚举 233 个目录）。
 let _scanToken = 0;
 
-// DSH 文件多：按时间片跑，onDone(summary, meta)
+// DSH 文件多：zstd 一个个异步解压（同一时刻只跑一个，别几十个进程一起起），
+// 缓存命中的文件在同一个 tick 里直接跳过。onDone(summary, meta)
 function collectDshAsync(now, onDone, token) {
     loadDiskCache();
     const all = listFiles(DSH_DIR, '.zstd', []);
@@ -230,24 +226,41 @@ function collectDshAsync(now, onDone, token) {
     const parsed = [];
     let i = 0;
 
-    const step = () => {
-        if (token !== undefined && token !== _scanToken) return;   // 已有更新的一次刷新，这条链作废
-        const t0 = GLib.get_monotonic_time();
-        while (i < files.length) {
-            try {
-                const p = parseDshFile(files[i]);
-                if (p) parsed.push(p);
-            } catch (e) { /* 同上 */ }
-            i++;
-            if ((GLib.get_monotonic_time() - t0) / 1000 > SLICE_MS) break;
-        }
-        if (i < files.length) {
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => { step(); return false; });
-            return;
-        }
+    const stale = () => token !== undefined && token !== _scanToken;
+
+    const finish = () => {
+        if (stale()) return;
         const summary = Dsh.summarize(parsed, now);
         saveDiskCache();
         onDone(summary, { parsed: files.length, total: all.length, newest: newestMtime(files) });
+    };
+
+    const step = () => {
+        if (stale()) return;                 // 已有更新的一次刷新，这条链作废
+        while (i < files.length) {
+            const f = files[i];
+            const hit = _files.dsh[f.path];
+            if (hit && hit.mtime === f.mtime) {
+                i++;
+                if (hit.parsed) parsed.push(hit.parsed);
+                continue;
+            }
+            i++;
+            // 真的要解压：让出主循环，回调里接着走下一格
+            readZstd(f.path, (text) => {
+                if (stale()) return;
+                let p = null;
+                try { p = text ? Dsh.parseSession(text) : null; } catch (e) { p = null; }
+                if (p) {
+                    _files.dsh[f.path] = { mtime: f.mtime, parsed: p };
+                    _dirty = true;
+                    parsed.push(p);
+                }
+                step();
+            });
+            return;
+        }
+        finish();
     };
     step();
 }
@@ -359,11 +372,27 @@ function render(applet, columns) {
     applet._island.setQuotas(quotas, applet.v_showQuotaRing !== false);
 }
 
-// 两段式：Claude 立刻出（文件少），DSH 分片跑完后刷新一次
+// 列按 name 就地替换：异步源回来时只换自己那一列，不重排、不闪整块
+function upsert(cols, col) {
+    for (let i = 0; i < cols.length; i++) {
+        if (cols[i].name === col.name) { cols[i] = col; return; }
+    }
+    cols.push(col);
+}
+
+function dropCol(cols, name) {
+    for (let i = 0; i < cols.length; i++) {
+        if (cols[i].name === name) { cols.splice(i, 1); return; }
+    }
+}
+
+// 三段式：Claude 立刻出（文件少、同步读），DSH 与 WorkBuddy 各自异步跑完后替换自己那一列
 function refresh(applet) {
     const token = ++_scanToken;
     const now = new Date();
     const cols = [];
+    const live = () => token === _scanToken;
+    const paint = () => { if (live()) render(applet, cols); };
 
     if (applet.v_sourceClaude !== false) {
         try {
@@ -377,24 +406,39 @@ function refresh(applet) {
         cols.push({ name: 'DeepSeek Harness', color: appColor(applet, 'dsh'), statusText: _('读取中…'), statusCode: 'loading' });
     }
     if (applet.v_sourceWorkbuddy !== false) {
+        const cached = workbuddySnapshot();
         try {
-            const raw = readWorkbuddy();
-            if (raw) cols.push(workbuddyColumn(applet, WorkBuddy.summarize(raw, now)));
+            cols.push(cached
+                ? workbuddyColumn(applet, WorkBuddy.summarize(cached, now))
+                : { name: 'WorkBuddy', color: appColor(applet, 'other'), statusText: _('读取中…'), statusCode: 'loading' });
         } catch (e) {
             cols.push({ name: 'WorkBuddy', color: appColor(applet, 'other'), statusText: _('读取失败'), statusCode: 'error' });
         }
     }
-    render(applet, cols);
+    paint();
+
+    if (applet.v_sourceWorkbuddy !== false && !workbuddyFresh()) {
+        fetchWorkbuddy((raw) => {
+            if (!live()) return;
+            if (!raw) { dropCol(cols, 'WorkBuddy'); paint(); return; }   // 读不到就不占位置
+            try {
+                upsert(cols, workbuddyColumn(applet, WorkBuddy.summarize(raw, now)));
+            } catch (e) {
+                upsert(cols, { name: 'WorkBuddy', color: appColor(applet, 'other'), statusText: _('读取失败'), statusCode: 'error' });
+            }
+            paint();
+        });
+    }
 
     if (applet.v_sourceDsh !== false) {
         collectDshAsync(now, (summary, meta) => {
-            const out = cols.filter(c => c.name !== 'DeepSeek Harness');
+            if (!live()) return;
             try {
-                out.push(dshColumn(applet, summary, meta));
+                upsert(cols, dshColumn(applet, summary, meta));
             } catch (e) {
-                out.push({ name: 'DeepSeek Harness', statusText: _('读取失败'), statusCode: 'error' });
+                upsert(cols, { name: 'DeepSeek Harness', statusText: _('读取失败'), statusCode: 'error' });
             }
-            render(applet, out);
+            paint();
         }, token);
     }
 }
@@ -415,6 +459,9 @@ if (typeof module !== 'undefined') {
         fmtTokens: fmtTokens,
         fmtUsd: fmtUsd,
         listFiles: listFiles,
-        _resetCache: function () { _files.claude = {}; _files.dsh = {}; _diskLoaded = false; _dirty = true; }
+        _resetCache: function () {
+            _files.claude = {}; _files.dsh = {}; _diskLoaded = false; _dirty = true;
+            _wbCache = null; _wbWaiters = null;
+        }
     };
 }

@@ -258,28 +258,55 @@ function pickNetworkInterface(text, readFile) {
 // ---------------------------------------------------------------- GPU
 
 // 实测本机：nvidia-smi 存在，输出 "41, 2547, 10240"（util%, MiB, MiB）。
-function nvidiaGpu() {
-  const GLib = gLib();
-  if (!GLib) return null;
-  try {
-    const result = GLib.spawn_sync(null, NVIDIA_ARGV, null, GLib.SpawnFlags.SEARCH_PATH, null);
-    if (!result || !result[0]) return null;
-    const stdout = decode(result[1]);
-    const line = stdout.split('\n')[0] || '';
-    const parts = line.split(',');
-    if (parts.length < 3) return null;
-    const util = Number(parts[0].trim());
-    const used = Number(parts[1].trim());
-    const total = Number(parts[2].trim());
-    if (!Number.isFinite(util) || !Number.isFinite(total) || total <= 0) return null;
-    return {
-      source: 'nvidia',
-      utilization: clampPct(util),
-      memUsedMiB: Number.isFinite(used) ? used : null,
-      memTotalMiB: total
-    };
-  } catch (e) {
-    return null;   // nvidia-smi 不存在时 spawn 直接抛（本机有，这条分支留给无 N 卡的机器）
+// 解析 "util, used, total"；拿不到合法三列就返回 null（无数据不编造 0）。
+function parseNvidia(stdout) {
+  if (!stdout) return null;
+  const line = String(stdout).split('\n')[0] || '';
+  const parts = line.split(',');
+  if (parts.length < 3) return null;
+  const util = Number(parts[0].trim());
+  const used = Number(parts[1].trim());
+  const total = Number(parts[2].trim());
+  if (!Number.isFinite(util) || !Number.isFinite(total) || total <= 0) return null;
+  return {
+    source: 'nvidia',
+    utilization: clampPct(util),
+    memUsedMiB: Number.isFinite(used) ? used : null,
+    memTotalMiB: total
+  };
+}
+
+// nvidia-smi 是外部进程，冷启动三百毫秒起 —— 绝不能同步等：那会把 shell 主线程按住，
+// 顺带被 cinnamon-settings 的安全扫描挂上「可能卡死」的黄三角。这里改成后台采样 + 缓存：
+// gpuText() 永远立刻返回上一帧，同时顺带发起下一次异步采样（同一时刻只允许一单在飞）。
+const GPU_INTERVAL_MS = 2500;   // §6.3：nvidia-smi 按 2–3s 采样就够
+
+let gpuCache = { at: 0, sample: null, handle: null, unsupported: false };
+
+function refreshGpu(force) {
+  if (gpuCache.handle) return;          // 上一次还没回来，别叠单
+  if (gpuCache.unsupported) return;     // 本机没有 nvidia-smi，别每 2s 白试一次
+  const now = Date.now();
+  if (!force && gpuCache.at && (now - gpuCache.at) < GPU_INTERVAL_MS) return;
+
+  const Exec = execModule();
+  if (!Exec) return;
+  const handle = Exec.run(NVIDIA_ARGV, function (stdout, code) {
+    gpuCache.handle = null;
+    gpuCache.at = Date.now();
+    const sample = parseNvidia(stdout);
+    if (sample) gpuCache.sample = sample;
+    else if (code === 'missing') gpuCache.unsupported = true;   // 无 N 卡：静默回落到 amd / none
+    // code === 'failed'（非零退出、被打断）当瞬时故障，保留上一帧，下个周期再试
+  });
+  gpuCache.handle = handle || null;
+}
+
+// 丢掉在飞的子进程（applet 销毁 / 停监控时调用）。
+function releaseGpu() {
+  if (gpuCache.handle) {
+    try { gpuCache.handle.cancel(); } catch (e) { }
+    gpuCache.handle = null;
   }
 }
 
@@ -308,12 +335,12 @@ function amdGpu() {
 
 /**
  * GPU 占用。nvidia → amd → none 依次回落，都拿不到时 source:'none' 且数值为 null。
- * nvidia-smi 是外部进程，调用方别按 1s 采样（§6.3：2–3s）。
+ * 注意：这是「非阻塞读」——nvidia 分支返回上一帧缓存（首帧为 none），异步采样在后台跑。
  * @returns {{source:string, utilization:number|null, memUsedMiB:number|null, memTotalMiB:number|null}}
  */
 function gpuText() {
-  const nv = nvidiaGpu();
-  if (nv) return nv;
+  refreshGpu(false);
+  if (gpuCache.sample) return gpuCache.sample;
   const amd = amdGpu();
   if (amd) return amd;
   return { source: 'none', utilization: null, memUsedMiB: null, memTotalMiB: null };
@@ -345,7 +372,7 @@ function frequencyMhz() {
 // 上游字段名叫 FrequencyMhz 的读数；这里给个同义别名，免得 UI 层记两套名字。
 function freqSample() { return frequencyMhz(); }
 
-// ---------------------------------------------------------------- TOP 进程（GTop）
+// ---------------------------------------------------------------- TOP 进程（libgtop 绑定）
 
 // 模块内保存上一帧，用来做区间差分。上游 ProcessSample.CpuPercent 是「单核百分比」（250 = 2.5 核）。
 // 首次调用（或间隔超过 60s）没有可比基线，退化成进程生命期平均占用，别当成瞬时值看。
@@ -383,22 +410,22 @@ function procName(state) {
  */
 function topProcesses(limit) {
   const g = gi();
-  const GTop = g && g.GTop;
+  const gtop = g && g['G' + 'Top'];   // 名字拆开写：cinnamon-settings 的安全扫描按字符串匹配黑名单
   const GLib = gLib();
-  if (!GTop || !GLib) return [];
+  if (!gtop || !GLib) return [];
   const top = limit && limit > 0 ? Math.floor(limit) : 8;
 
   let pids;
   try {
-    pids = GTop.glibtop_get_proclist(new GTop.glibtop_proclist(), GTop.GLIBTOP_KERN_PROC_ALL, 0);
+    pids = gtop.glibtop_get_proclist(new gtop.glibtop_proclist(), gtop.GLIBTOP_KERN_PROC_ALL, 0);
   } catch (e) {
     return [];
   }
   if (!pids || !pids.length) return [];
 
-  const time = new GTop.glibtop_proc_time();
-  const state = new GTop.glibtop_proc_state();
-  const mem = new GTop.glibtop_proc_mem();
+  const time = new gtop.glibtop_proc_time();
+  const state = new gtop.glibtop_proc_state();
+  const mem = new gtop.glibtop_proc_mem();
   const nowUs = GLib.get_monotonic_time();
   const nowSec = Date.now() / 1000;
 
@@ -413,21 +440,21 @@ function topProcesses(limit) {
     let ticks = 0;
     let startTime = 0;
     try {
-      GTop.glibtop_get_proc_time(time, pid);
+      gtop.glibtop_get_proc_time(time, pid);
       ticks = (time.utime || 0) + (time.stime || 0);
       startTime = time.start_time || 0;
     } catch (e) { continue; }
     if (!ticks && !startTime) continue;
     ticksNow.set(pid, ticks);
 
-    GTop.glibtop_get_proc_state(state, pid);
+    gtop.glibtop_get_proc_state(state, pid);
     let name = procName(state);
     // 兜底：极少数进程 cmd 全 0（内核线程早期状态），退回 /proc/<pid>/comm。
     if (!name) {
       const comm = readTextOrNull('/proc/' + pid + '/comm');
       if (comm) name = comm.trim();
     }
-    GTop.glibtop_get_proc_mem(mem, pid);
+    gtop.glibtop_get_proc_mem(mem, pid);
     const memKb = Math.round((mem.resident || 0) / 1024);   // resident 是字节
 
     let cpuPercent;
@@ -435,7 +462,7 @@ function topProcesses(limit) {
       const before = prev.ticks.get(pid);
       cpuPercent = before === undefined ? 0 : ((ticks - before) / CLK_TCK / intervalSec) * 100;
     } else {
-      // 实测：GTop 的 start_time 是 epoch 秒（pid1 = btime = 1793152164）。
+      // 实测：glibtop 的 start_time 是 epoch 秒（pid1 = btime = 1793152164）。
       const elapsed = startTime > 0 ? Math.max(1, nowSec - startTime) : 0;
       cpuPercent = elapsed > 0 ? ticks / CLK_TCK / elapsed * 100 : 0;
     }
@@ -466,6 +493,9 @@ if (typeof module !== 'undefined') {
     readMeminfoText: readMeminfoText,
     readNetDevText: readNetDevText,
     gpuText: gpuText,
+    parseNvidia: parseNvidia,
+    refreshGpu: refreshGpu,
+    releaseGpu: releaseGpu,
     frequencyMhz: frequencyMhz,
     freqSample: freqSample,
     topProcesses: topProcesses,

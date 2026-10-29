@@ -43,8 +43,12 @@ if (typeof module !== 'undefined') module.exports = { SomeConst, resolve };
 - **Gio 的 `FileEnumerator` 用完必须 `close(null)`**，放在 `finally` 里。每个枚举器持有一个 dirfd，
   GJS 靠 GC 回收 —— 一次刷新枚举几百个目录就会把 cinnamon 的 1024 个 fd 用完
   （`GLib-ERROR: Creating pipes for GWakeup: 打开的文件过多`）。回归见 `tests/list-files.test.js`。
-- **`GLib.spawn_command_line_sync`（zstd / python3 / nvidia-smi）不要放进高频循环**：它是同步阻塞，
-  还带管道；要跑批量文件就用 `data.js` 的分片 + 磁盘缓存那套。
+- **外部命令一律走 `lib/linux/exec.js`**（`Gio.Subprocess` + `communicate_utf8_async`）：argv 形式、
+  不经 shell、按 PATH 解析、全程异步。同步 spawn（名字里带 sync 的那几个）会把 shell 主线程按住 ——
+  nvidia-smi 冷启动三百毫秒起，面板期间完全不响应；而且 `cinnamon-settings` 的源码扫描
+  （`ExtensionCore.py:32` 的 `UNSAFE_ITEMS`）会给整个 applet 挂黄三角。回归见 `tests/exec-safety.test.js`。
+- 批量文件（zstd 解压几百个会话）靠 `data.js` 的「缓存命中先跳过 + 同时只跑一个子进程」那套，
+  别为了快就并发起一堆进程。
 - 定时器、`GLib.idle_add` 的 source id 要存下来，销毁时 `source_remove`（applet 里 `_clockTimer` /
   `_refreshTimer` / `_openTimer` 都是这个模式）。
 
