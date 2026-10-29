@@ -77,6 +77,25 @@ function startOfDay(ms) {
   return d.getTime();
 }
 
+// 按「自然日」平移：走 Date 的 setDate，不是加 86400000 —— 跨夏令时那天不会偏一小时。
+function shiftDays(dayStart, delta) {
+  var d = new Date(dayStart);
+  d.setDate(d.getDate() + delta);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function clampDays(days) {
+  var n = Math.floor(Number(days));
+  if (!Number.isFinite(n) || n < 1) return 7;
+  return Math.min(366, n);
+}
+
+// 自然日差：DST 那天两个 startOfDay 之差是 23h 或 25h，取整除法得回整数天。
+function dayOffset(dayStart, firstStart) {
+  return Math.round((dayStart - firstStart) / DAY_MS);
+}
+
 function hash32(input) {
   var h = 0x811c9dc5;
   for (var i = 0; i < input.length; i++) {
@@ -328,6 +347,62 @@ function summarize(parsed, now) {
   };
 }
 
+// ---- 逐日桶（趋势页用）-----------------------------------------------------
+
+// daily(parsed, now, days) -> { tokens: [..days], usd: [..days] | null }
+//   index 0 是最早一天，index days-1 是今天；桶按本地自然日切。
+//   归日规则与 summarize 逐条一致：token 看 assistant 行自己的 timestamp，
+//   费用看会话 mtime（一个跨零点的会话整体记到最后写入那天，见文件头「费用取整策略」）。
+//   窗口外的条目直接丢，不补进最近一天。
+function daily(parsed, now, days) {
+  var n = clampDays(days);
+  var nowMs = toMs(now);
+  if (nowMs === null) nowMs = Date.now();
+  var todayStart = startOfDay(nowMs);
+  var firstStart = shiftDays(todayStart, -(n - 1));
+
+  var tokens = [];
+  var usd = [];
+  var hasCost = false;
+  for (var i = 0; i < n; i++) { tokens.push(0); usd.push(0); }
+
+  function slot(dayStart) {
+    var k = dayOffset(dayStart, firstStart);
+    return k >= 0 && k < n ? k : -1;
+  }
+
+  var sessions = Array.isArray(parsed) ? parsed : [parsed];
+  for (var s = 0; s < sessions.length; s++) {
+    var session = sessions[s];
+    if (!isObject(session)) continue;
+
+    var list = Array.isArray(session.entries) ? session.entries : [];
+    for (var e = 0; e < list.length; e++) {
+      var entry = list[e];
+      if (!isObject(entry)) continue;
+      var ts = toMs(entry.ts);
+      if (ts === null || ts > nowMs) continue;
+      var total = count(entry.total);
+      if (total <= 0) total = count(entry.input) + count(entry.output) + count(entry.cacheRead) + count(entry.cacheWrite);
+      if (total <= 0) continue;
+      var k = slot(startOfDay(ts));
+      if (k >= 0) tokens[k] += total;
+    }
+
+    var state = lastCostState(session);
+    if (!state) continue;
+    var sessionMs = toMs(session.mtime);
+    if (sessionMs === null) sessionMs = toMs(state.startTime);
+    if (sessionMs === null || sessionMs > nowMs) continue;
+    var idx = slot(startOfDay(sessionMs));
+    if (idx < 0) continue;
+    hasCost = true;
+    usd[idx] += Number.isFinite(state.totalCostUSD) ? state.totalCostUSD : 0;
+  }
+
+  return { tokens: tokens, usd: hasCost ? usd : null };
+}
+
 // ---- 在线配额 --------------------------------------------------------------
 
 // quotaRequest(token, opts) -> { method, url, headers }
@@ -426,6 +501,7 @@ if (typeof module !== 'undefined') {
     WEEK_DAYS: WEEK_DAYS,
     parseSession: parseSession,
     summarize: summarize,
+    daily: daily,
     quotaRequest: quotaRequest,
     parseQuotaResponse: parseQuotaResponse,
     lastCostState: lastCostState,

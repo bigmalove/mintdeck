@@ -75,6 +75,37 @@ function summarize(raw, now) {
   };
 }
 
+// ---- 逐日桶（趋势页用）-----------------------------------------------------
+
+// daily(raw, now, days) -> { credits: [..days] }
+//   index 0 是最早一天，index days-1 是今天；积分按会话 updated_at 归日（与 summarize 同一规则）。
+//   没有任何 upd 的行（刚建的空会话）不落桶。
+function daily(raw, now, days) {
+  var n = Math.floor(Number(days));
+  if (!Number.isFinite(n) || n < 1) n = 7;
+  n = Math.min(366, n);
+  var data = raw || {};
+  var rows = Array.isArray(data.rows) ? data.rows : [];
+  var nowMs = now instanceof Date ? now.getTime() : (Number(now) || Date.now());
+  var todayStart = startOfDay(nowMs);
+  var first = new Date(todayStart);
+  first.setDate(first.getDate() - (n - 1));
+  first.setHours(0, 0, 0, 0);
+  var firstStart = first.getTime();
+
+  var credits = [];
+  for (var i = 0; i < n; i++) credits.push(0);
+
+  for (var j = 0; j < rows.length; j++) {
+    var upd = toMs(rows[j].upd);
+    if (upd === null || upd > nowMs) continue;
+    // DST 那天两个 startOfDay 差 23h 或 25h，取整除法才回到整数天
+    var k = Math.round((startOfDay(upd) - firstStart) / DAY_MS);
+    if (k >= 0 && k < n) credits[k] += num(rows[j].credit);
+  }
+  return { credits: credits };
+}
+
 function fmtCredits(v) {
   var n = num(v);
   if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
@@ -86,6 +117,7 @@ function fmtCredits(v) {
 if (typeof module !== 'undefined') {
   module.exports = {
     summarize: summarize,
+    daily: daily,
     fmtCredits: fmtCredits,
     toMs: toMs,
     startOfDay: startOfDay,

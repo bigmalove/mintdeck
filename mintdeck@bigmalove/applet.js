@@ -47,12 +47,27 @@ const PanelMod = imports.lib.deck.panel;
 const Store = imports.lib.deck.store;
 const Data = imports.lib.deck.data;
 const Live = imports.lib.deck.live;
+const Alerts = imports.lib.core.alerts;
+const Pomo = imports.lib.core.pomodoro;
 
 // 界面文案：msgid 是中文原文，t() 按当前 locale 查词典（词典在构造函数里注入）
 const _ = I18n.t;
 
 let Themes = null;
 try { Themes = imports.lib.core.theme; } catch (e) { Themes = null; }
+
+// 天气分组（lib/linux/weather.js 的 kindOf）→ 界面上的名字
+function kindLabel(kind) {
+    if (kind === 'clear') return _('晴');
+    if (kind === 'partly') return _('多云');
+    if (kind === 'cloud') return _('阴');
+    if (kind === 'fog') return _('雾');
+    if (kind === 'drizzle') return _('细雨');
+    if (kind === 'rain') return _('雨');
+    if (kind === 'snow') return _('雪');
+    if (kind === 'storm') return _('雷雨');
+    return '—';
+}
 
 // 尺寸档位表在这里：档位 → 七个收起尺寸值
 let Geo = null;
@@ -70,6 +85,15 @@ class MintDeckApplet extends Applet.Applet {
         this._refreshTimer = 0;
         this._hoverOpen = false;
         this._liveStops = [];
+        this._alertState = {};      // 配额预警的边沿状态：{ [来源名]: { level, at } }
+        this._pomodoro = null;      // 番茄钟状态机（构造末尾 create）
+        this._lastMonitor = null;   // 最近一帧系统监控（网络页要借用上下行）
+        this._lastNet = null;       // 最近一帧网络质量采样
+        this._sysinfo = null;       // 磁盘 / 温度 / 风扇 / 频率
+        this._calendar = null;      // 日程采集结果 { events, sources, error }
+        this._weather = null;       // 天气 { tempC, kind, highC, lowC, ... }
+        this._tasks = null;         // 下载 / 容器 / systemd 失败单元
+        this._extraStops = { calendar: null, weather: null, tasks: null };
 
         // ---- 设置 -------------------------------------------------------
         this._settings = new Settings.AppletSettings(this, UUID, instance_id);
@@ -98,6 +122,28 @@ class MintDeckApplet extends Applet.Applet {
         s.bind('sourceClaude', 'v_sourceClaude', () => this._scheduleRefresh(120));
         s.bind('sourceDsh', 'v_sourceDsh', () => this._scheduleRefresh(120));
         s.bind('sourceWorkbuddy', 'v_sourceWorkbuddy', () => this._scheduleRefresh(120));
+        // 配额预警：这三项以前只写在 schema 里、代码里没人读，勾了也不会响。
+        // 改了任一项就清空边沿状态，让新阈值立刻重新判一遍（否则要等下一次越线才生效）。
+        // 专注计时（番茄钟）：四个数字改了要重建状态机的 cfg，但不清掉当前阶段（跑着的时候改时长，
+        // 只影响下一段；这一段的剩余时间按旧值走完，不然倒计时会突然跳）。
+        s.bind('focusWorkMinutes', 'v_focusWork', () => this._applyPomodoroConfig());
+        s.bind('focusShortMinutes', 'v_focusShort', () => this._applyPomodoroConfig());
+        s.bind('focusLongMinutes', 'v_focusLong', () => this._applyPomodoroConfig());
+        s.bind('focusLongEvery', 'v_focusEvery', () => this._applyPomodoroConfig());
+        s.bind('focusAutoAdvance', 'v_focusAuto', () => this._applyPomodoroConfig());
+        s.bind('focusInIsland', 'v_focusIsland', () => this._tick());
+        s.bind('focusNotify', 'v_focusNotify', () => {});
+        // 日程 / 天气 / 任务：改了哪一路就只重启那一路（天气改城市要重新地理编码）
+        s.bind('weatherCity', 'v_weatherCity', () => this._restartDay());
+        s.bind('aria2Url', 'v_aria2Url', () => this._restartTasks());
+        s.bind('aria2Secret', 'v_aria2Secret', () => this._restartTasks());
+        s.bind('qbUrl', 'v_qbUrl', () => this._restartTasks());
+        s.bind('qbUser', 'v_qbUser', () => this._restartTasks());
+        s.bind('qbPass', 'v_qbPass', () => this._restartTasks());
+        s.bind('showContainers', 'v_showContainers', () => this._restartTasks());
+        s.bind('quotaAlerts', 'v_quotaAlerts', () => { this._alertState = {}; });
+        s.bind('warningPercent', 'v_warnPct', () => { this._alertState = {}; this._scheduleRefresh(120); });
+        s.bind('criticalPercent', 'v_critPct', () => { this._alertState = {}; this._scheduleRefresh(120); });
 
         // ---- 多语言 -----------------------------------------------------
         // 必须在 bind 之后：v_language 是 bind 时才用 defineProperty 挂到 this 上的，
@@ -128,6 +174,9 @@ class MintDeckApplet extends Applet.Applet {
 
         this.set_applet_tooltip('MintDeck');
         this._applyPanelIcon();
+
+        this._pomodoro = Pomo.create(this._pomodoroOptions());
+        this._publishFocus();
 
         // 首次读取延后 1.2s：DSH 要起 zstd 子进程，别拖慢 shell 启动
         Data.schedule(this, 1200);
@@ -278,9 +327,27 @@ class MintDeckApplet extends Applet.Applet {
         });
     }
 
+    // 每秒一拍：先把番茄钟推进一格（到点要响），再决定收起态那一格写什么。
+    // 顺序不能反 —— 先读 remaining 再 tick 的话，倒计时会晚一秒归零。
     _tick() {
-        if (!this.v_showClock) { this._island.setClockText(''); return false; }
-        const now = new Date();
+        const now = Date.now();
+        if (this._pomodoro) {
+            const res = Pomo.tick(this._pomodoro, now);
+            if (res.events.length) this._onPomodoroEvents(res.events);
+            this._publishFocus();
+        }
+        let text = '';
+        if (this._pomodoro && this.v_focusIsland !== false && this._pomodoro.phase !== 'idle') {
+            // 专注/休息期间，岛上的那一格换成倒计时；时钟让位（这也是「灵动岛」该有的样子）
+            text = Pomo.format(Pomo.remaining(this._pomodoro, now));
+        } else if (this.v_showClock) {
+            text = this._clockLabel(new Date(now));
+        }
+        this._island.setClockText(text);
+        return false;
+    }
+
+    _clockLabel(now) {
         let h = now.getHours();
         const m = ('0' + now.getMinutes()).slice(-2);
         let suffix = '';
@@ -290,8 +357,73 @@ class MintDeckApplet extends Applet.Applet {
         } else {
             h = ('0' + h).slice(-2);
         }
-        this._island.setClockText(h + ':' + m + suffix);
+        return h + ':' + m + suffix;
+    }
+
+    // ------------------------------------------------------------ 专注（番茄钟）
+
+    _pomodoroOptions() {
+        return {
+            workMin: this.v_focusWork,
+            shortMin: this.v_focusShort,
+            longMin: this.v_focusLong,
+            longEvery: this.v_focusEvery,
+            autoAdvance: this.v_focusAuto !== false
+        };
+    }
+
+    // 改设置不动当前阶段：跑着的时候改时长，只影响下一段（不然倒计时会突然跳几十分钟）
+    _applyPomodoroConfig() {
+        if (!this._pomodoro) return false;
+        this._pomodoro.cfg = Pomo.config(this._pomodoroOptions());
+        if (this._pomodoro.phase === Pomo.PHASE_IDLE) {
+            this._pomodoro.durationMs = this._pomodoro.cfg.workMin * 60000;
+        }
+        this._publishFocus();
+        this._tick();
         return false;
+    }
+
+    _publishFocus() {
+        const p = this._pomodoro;
+        if (!p || !this._panel) return;
+        const now = Date.now();
+        const idle = p.phase === Pomo.PHASE_IDLE;
+        const totalMs = idle ? p.cfg.workMin * 60000 : p.durationMs;
+        this._panel.setFocus({
+            phase: p.phase,
+            timeText: Pomo.format(idle ? totalMs : Pomo.remaining(p, now)),
+            progress: idle ? 0 : Pomo.progress(p, now),
+            rounds: p.rounds,
+            longEvery: p.cfg.longEvery,
+            running: p.running
+        });
+    }
+
+    _focusToggle() {
+        const p = this._pomodoro;
+        const now = Date.now();
+        if (p.running) Pomo.pause(p, now);
+        else if (p.phase === Pomo.PHASE_IDLE) Pomo.start(p, now);
+        else Pomo.resume(p, now);
+        this._publishFocus();
+        this._tick();
+        return false;
+    }
+
+    _onPomodoroEvents(events) {
+        const p = this._pomodoro;
+        if (this.v_focusNotify === false) return;
+        for (const ev of events) {
+            try {
+                if (ev === 'work-done') {
+                    const mins = p.phase === Pomo.PHASE_LONG ? p.cfg.longMin : p.cfg.shortMin;
+                    Main.notify('MintDeck · ' + _('番茄钟'), _('专注结束，休息 %s 分钟', mins));
+                } else if (ev === 'break-done') {
+                    Main.notify('MintDeck · ' + _('番茄钟'), _('休息结束，回来继续专注'));
+                }
+            } catch (e) { global.logError(e); }
+        }
     }
 
     // ------------------------------------------------------------ 交互
@@ -444,6 +576,10 @@ class MintDeckApplet extends Applet.Applet {
     }
 
     _fillMenu() {
+        this._menu.addAction(_('专注计时'), () => {
+            this._focusToggle();
+            this._menu.close();        // 点完就收起，不然菜单还压着面板
+        });
         this._menu.addAction(_('设置…'), () => this.configureApplet());
         this._menu.addAction(_('重新读取数据'), () => this._refreshData());
         this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
@@ -456,6 +592,9 @@ class MintDeckApplet extends Applet.Applet {
     _onPanelAction(action) {
         if (action === 'refresh') { this._refreshData(); return; }
         if (action === 'settings') { this.configureApplet(); return; }
+        if (action === 'focus:toggle') { this._focusToggle(); return; }
+        if (action === 'focus:skip') { Pomo.skip(this._pomodoro, Date.now()); this._publishFocus(); this._tick(); return; }
+        if (action === 'focus:reset') { Pomo.stop(this._pomodoro); this._publishFocus(); this._tick(); return; }
         const music = this._liveStops.find(s => typeof s.playPause === 'function');
         if (!music) return;
         if (action === 'music:playpause') music.playPause();
@@ -475,8 +614,221 @@ class MintDeckApplet extends Applet.Applet {
             this._liveStops.push(Live.startMonitor(this, (sample) => {
                 this._panel.setMonitor(sample);
                 this._island.setMonitor(sample, this.v_showMonitor !== false);
+                this._lastMonitor = sample;
+                this._publishNetwork();          // 网络页的上下行借这一帧，不再单独采一次
             }));
         } catch (e) { global.logError(e); }
+        try {
+            this._liveStops.push(Live.startNetQuality((sample) => {
+                this._lastNet = sample;
+                this._publishNetwork();
+            }));
+        } catch (e) { global.logError(e); }
+        try {
+            this._liveStops.push(Live.startSysinfo((info) => {
+                this._sysinfo = info;
+                this._panel.setSysinfo(info);
+            }));
+        } catch (e) { global.logError(e); }
+        this._restartDay();
+        this._restartTasks();
+    }
+
+    // 网络页 = 链路/ping/IP（Live.startNetQuality）+ 上下行（监控采样的同一帧）。
+    // 两路各自回来都重算一次，谁也等谁 —— 缺的那半显示 —，不拿 0 顶。
+    _publishNetwork() {
+        const n = this._lastNet;
+        const m = this._lastMonitor || {};
+        if (!n && !m.rxKbps) return;
+        const link = n && n.link ? n.link : null;
+        const lat = n && n.latency ? n.latency : null;
+        this._panel.setNetwork({
+            iface: link ? link.iface : null,
+            operstate: link ? link.operstate : null,
+            speedMbps: link ? link.speedMbps : null,
+            rttMs: lat ? lat.rttMs : null,
+            lossPercent: lat ? lat.lossPercent : null,
+            publicIp: n ? n.publicIp : null,
+            rxKbps: m.rxKbps || null,
+            txKbps: m.txKbps || null,
+            status: (link || lat) ? 'ok' : 'unavailable',
+            intervalSec: 30
+        });
+    }
+
+    // ------------------------------------------------------------ 日程 / 天气 / 任务
+
+    _stopExtra(name) {
+        const stop = this._extraStops[name];
+        if (stop) { try { stop(); } catch (e) { } }
+        this._extraStops[name] = null;
+    }
+
+    _restartDay() {
+        this._stopExtra('calendar');
+        this._stopExtra('weather');
+        try {
+            this._extraStops.calendar = Live.startCalendar((res) => {
+                this._calendar = res;
+                this._publishAgenda();
+            });
+        } catch (e) { global.logError(e); }
+        try {
+            this._extraStops.weather = Live.startWeather(this.v_weatherCity, (w) => {
+                this._weather = w;
+                this._publishAgenda();
+            });
+        } catch (e) { global.logError(e); }
+    }
+
+    _restartTasks() {
+        try { this._liveStops.push(Live.startTasks(() => this._taskOptions(), (sample) => {
+            this._tasks = sample;
+            this._publishTasks();
+        })); } catch (e) { global.logError(e); }
+    }
+
+    // 每一路「地址留空 = 关闭」，不猜本机有没有装；容器开关是显式的 checkbox
+    _taskOptions() {
+        const ariaUrl = (this.v_aria2Url || '').trim();
+        const qbUrl = (this.v_qbUrl || '').trim();
+        return {
+            aria2: ariaUrl ? { url: ariaUrl, secret: (this.v_aria2Secret || '').trim() } : null,
+            qbittorrent: qbUrl ? { url: qbUrl, user: (this.v_qbUser || '').trim(), pass: this.v_qbPass || '' } : null,
+            containers: this.v_showContainers !== false
+        };
+    }
+
+    _weekdayText(d) {
+        const names = [_('周日'), _('周一'), _('周二'), _('周三'), _('周四'), _('周五'), _('周六')];
+        return names[d.getDay()] || '';
+    }
+
+    _clockTextFor(ms) {
+        const d = new Date(ms);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return hh + ':' + mm;
+    }
+
+    _buildAgenda() {
+        const now = new Date();
+        const month0 = now.getMonth();
+        const year = now.getFullYear();
+        const todayStart = new Date(year, month0, now.getDate()).getTime();
+        const dayMs = 86400000;
+        const events = (this._calendar && this._calendar.events) ? this._calendar.events : [];
+
+        const today = [];
+        const upcoming = [];
+        const eventDays = {};
+        const seenUpcoming = {};
+
+        for (const ev of events) {
+            const start = Number(ev.start);
+            if (!Number.isFinite(start)) continue;
+            const dayStart = new Date(start);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayMs0 = dayStart.getTime();
+            const dayDiff = Math.round((dayMs0 - todayStart) / 86400000);
+
+            if (dayDiff === 0) {
+                today.push({
+                    timeText: ev.allDay ? _('全天') : this._clockTextFor(start),
+                    summary: ev.summary || _('（无标题）'),
+                    at: start
+                });
+                eventDays[dayStart.getDate()] = true;
+            } else if (dayDiff > 0 && dayDiff <= 7) {
+                const key = dayMs0 + '|' + (ev.summary || '');
+                if (seenUpcoming[key]) continue;
+                seenUpcoming[key] = true;
+                upcoming.push({
+                    dayText: dayDiff === 1 ? _('明天') : (dayStart.getMonth() + 1) + '/' + dayStart.getDate(),
+                    summary: ev.summary || _('（无标题）'),
+                    at: start
+                });
+            }
+            // 月历上的点：本月任意一天有日程都标
+            if (dayStart.getFullYear() === now.getFullYear() && dayStart.getMonth() === now.getMonth()) {
+                eventDays[dayStart.getDate()] = true;
+            }
+        }
+
+        today.sort((x, y) => (x.at || 0) - (y.at || 0));
+        upcoming.sort((x, y) => (x.at || 0) - (y.at || 0));
+
+        const w = this._weather;
+        const weather = w ? {
+            kind: w.kind || null,
+            tempText: Number.isFinite(w.tempC) ? Math.round(w.tempC) + '°' : '—',
+            kindText: kindLabel(w.kind),
+            rangeText: (Number.isFinite(w.lowC) && Number.isFinite(w.highC))
+                ? Math.round(w.lowC) + '°~' + Math.round(w.highC) + '°' : ''
+        } : null;
+
+        return {
+            dateText: _('%s月%s日 · %s', now.getMonth() + 1, now.getDate(), this._weekdayName(now.getDay())),
+            year: now.getFullYear(),
+            month0: now.getMonth(),
+            todayDay: now.getDate(),
+            eventDays: Object.keys(eventDays).map(Number),
+            today: today,
+            upcoming: upcoming,
+            weather: weather,
+            weatherNote: (weather || !(this.v_weatherCity || '').trim()) ? null : _('设置里填城市后显示天气')
+        };
+    }
+
+    _weekdayName(dow) {
+        const names = [_('周日'), _('周一'), _('周二'), _('周三'), _('周四'), _('周五'), _('周六')];
+        return names[dow] || '';
+    }
+
+    _publishAgenda() {
+        if (!this._panel) return;
+        this._panel.setAgenda(this._buildAgenda());
+    }
+
+    _publishTasks() {
+        const t = this._tasks;
+        if (!t) {
+            this._panel.setTasks({ downloads: null, containers: null, failed: null, note: _('任务模块不可用') });
+            return;
+        }
+        const speedText = (v) => {
+            if (!Number.isFinite(v) || v <= 0) return null;
+            return Live.fmtRate(v);
+        };
+        const downloads = t.downloads ? {
+            source: t.downloadsSource || null,
+            speedText: speedText(t.downloads.speedBytesPerSec),
+            active: (t.downloads.active || []).map(a => ({
+                name: a.name || _('（未命名）'),
+                percent: Number.isFinite(a.percent) ? a.percent : null,
+                meta: [speedText(a.downBytesPerSec), Number.isFinite(a.etaSec) ? _('剩余 %s', this._etaText(a.etaSec)) : null]
+                    .filter(Boolean).join(' · ')
+            })),
+            stopped: t.downloads.stopped || 0,
+            total: t.downloads.total || 0
+        } : null;
+        this._panel.setTasks({
+            downloads: downloads,
+            containers: t.containers ? {
+                total: t.containers.total || 0,
+                running: t.containers.running || 0,
+                names: t.containers.names || []
+            } : null,
+            failed: Array.isArray(t.failedUnits) ? t.failedUnits : null,
+            note: downloads ? null : _('未配置下载器')
+        });
+    }
+
+    _etaText(sec) {
+        const s = Math.max(0, Math.round(sec));
+        if (s >= 3600) return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
+        if (s >= 60) return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+        return s + 's';
     }
 
     _stopLive() {
@@ -490,6 +842,45 @@ class MintDeckApplet extends Applet.Applet {
         } catch (e) {
             Main.notify('MintDeck', _('读取失败：%s', e.message));
         }
+    }
+
+    // ------------------------------------------------------------ 配额预警
+
+    // data.js 每画完一屏列就会回调这里（列里带着各配额百分比）。
+    // 判定本身在 lib/core/alerts.js（纯函数，node 可测），这里只负责「响了怎么发」。
+    _onColumns(columns) {
+        if (this.v_quotaAlerts === false) { this._alertState = {}; return false; }
+        let result;
+        try {
+            result = Alerts.evaluate(columns, this._alertState, {
+                warning: this.v_warnPercent,
+                critical: this.v_critPct,
+                cooldownMs: 30 * 60 * 1000        // 同一来源半小时内只响一次，来回拉阈值不会刷屏
+            });
+        } catch (e) { global.logError(e); return false; }
+        this._alertState = result.state;
+        for (const alert of result.alerts) this._notifyQuota(alert);
+        return false;
+    }
+
+    _notifyQuota(alert) {
+        const pct = Math.round(alert.percent) + '%';
+        const title = _('配额预警');
+        const body = alert.level === 'crit'
+            ? _('%s 已达 %s，额度即将用完', alert.name, pct)
+            : _('%s 已用 %s', alert.name, pct);
+        try {
+            if (alert.level === 'crit' && Main.criticalNotify) {
+                // 告警线用 criticalNotify：不是一闪而过的 transient 通知，留在通知中心里等人看见
+                let icon = null;
+                try {
+                    icon = new St.Icon({ icon_name: 'dialog-warning', icon_type: St.IconType.FULLCOLOR, icon_size: 36 });
+                } catch (e2) { icon = null; }
+                Main.criticalNotify('MintDeck · ' + title, body, icon);
+            } else {
+                Main.notify('MintDeck · ' + title, body);
+            }
+        } catch (e) { global.logError(e); }
     }
 
     // ------------------------------------------------------------ 生命周期

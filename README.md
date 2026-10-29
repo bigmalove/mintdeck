@@ -2,10 +2,10 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-E5A385?style=flat-square)](LICENSE)
 [![Cinnamon](https://img.shields.io/badge/Cinnamon-5.8%20%7C%206.0%20%7C%206.2%20%7C%206.4%20%7C%206.6-32A852?style=flat-square)](mintdeck@bigmalove/metadata.json)
-[![Tests](https://img.shields.io/badge/tests-138%20passing-2E8B57?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-270%20passing-2E8B57?style=flat-square)](tests)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-339933?style=flat-square&logo=node.js&logoColor=white)](tests)
 
-Cinnamon 桌面上的「灵动岛」：屏幕顶部一条悬浮的小黑条，鼠标移上去展开，集中显示 **AI 编程工具的额度与用量**、**正在播放的音乐**、**系统监控**。
+Cinnamon 桌面上的「灵动岛」：屏幕顶部一条悬浮的小黑条，鼠标移上去展开，集中显示 **AI 编程工具的额度与用量**、**日程与天气**、**正在播放的音乐**、**系统监控**，另有 **番茄钟**、**网络质量** 与 **下载/容器任务** 三页。
 
 <p align="center">
   <img src="docs/images/collapsed.png" alt="收起态" width="820">
@@ -20,6 +20,8 @@ Cinnamon 桌面上的「灵动岛」：屏幕顶部一条悬浮的小黑条，�
 | AI 用量（展开面板） | 音乐 | 系统监控 |
 | --- | --- | --- |
 | ![AI 用量](docs/images/usage.png) | ![音乐](docs/images/music.png) | ![系统监控](docs/images/monitor.png) |
+
+![日程与天气](docs/images/agenda.png) ![任务](docs/images/tasks.png)
 
 三种外观（同一份内容，只换「外观」设置）：
 
@@ -54,10 +56,34 @@ uuid 是 `mintdeck@bigmalove`，已按 Cinnamon Spices 的目录规范提交到
 | 页面 | 内容 | 数据来源 |
 | --- | --- | --- |
 | AI 用量 | 每列：工具名 + 套餐徽章、配额槽（5 小时 / 每周 / 上下文）、今日与七日的 Token 或积分 | Claude Code：`~/.claude/projects/**/*.jsonl`；DeepSeek Harness：`~/.dsh-desktop/sessions/**/*.jsonl.zstd`；WorkBuddy：`~/.workbuddy/workbuddy.db` 的 `session_usage`（经 python3 只读桥）+ `storage/skeleton/account-snapshot.json` |
+| 用量趋势 | 每个来源一行 14 天柱状图：各自单位（Token / 积分）、今日与合计；0 值只留轨道 | 同上（复用同一批解析结果，`daily()` 切自然日桶） |
+| 日程 | 月历（今天带圈、有日程的日子点一下）+ 今日日程 + 未来 7 天；右上角天气 | 本机 `.ics`（`~/.local/share/evolution/{calendar,tasks}/**/*.ics`）+ Open-Meteo（免 key） |
+| 专注计时 | 25/5/15 番茄钟：大号倒计时、阶段、进度条、轮次点；开始/暂停/跳过/重置。专注时收起态的时钟位换成倒计时 | 纯本地状态机 `lib/core/pomodoro.js`（node 可测），不联网 |
 | 音乐 | 歌名、歌手、播放状态；收起态显示标题或当前歌词 | MPRIS（任何支持 D-Bus 媒体控制的播放器） |
-| 系统监控 | CPU 总值、内存、GPU、上下行网速（收起态可显示读数） | `/proc/stat`、`/proc/meminfo`、`/proc/net/dev`、`nvidia-smi` |
+| 系统监控 | 概览：CPU 总值与每核柱、内存、GPU、上下行网速、TOP 6 进程；页脚「详情 ›」切第二屏：磁盘占用、温度、风扇、CPU 频率（收起态可显示读数） | `/proc/stat`、`/proc/meminfo`、`/proc/net/dev`、`nvidia-smi`、`statvfs`、`/sys/class/thermal`、`/sys/class/hwmon`、`/sys/.../scaling_cur_freq` |
+| 网络 | 网卡与链路状态、ICMP 延迟与丢包、公网 IP、实时上下行 | `/sys/class/net/*`、`ping`（异步、60s 缓存）、`api.ipify.org`（10 分钟缓存）、`/proc/net/dev` |
+| 任务 | 下载（aria2 JSON-RPC / qBittorrent Web API）进度条、容器运行数（docker/podman）、systemd 用户失败单元 | 本地 HTTP API + `docker ps` / `podman ps` / `systemctl --user --failed`（全部异步） |
 
-费用按会话累计的 `totalCostUSD`（Claude 的 `cost-state` 行）取**每个会话最后一条**，按文件 mtime 归入今日/本周，不跨状态相加。
+**专注计时**（行为 → 专注计时）：专注 / 短休息 / 长休息的分钟数、每几轮一次长休息、是否自动进入下一段、
+是否在岛上显示倒计时、是否通知。右键菜单里的「专注计时」等价于面板上的开始/暂停。改时长不会打断正在跑的这一段
+（新值从下一段生效），不然倒计时会突然跳几十分钟。
+
+**日程与天气**（AI 用量页 → 日程与天气）：填了天气城市才会请求 Open-Meteo（留空 = 完全不发请求，不猜经纬度）；
+同城 10 分钟缓存、失败安静 60 秒。日程从本机日历读，读不到就是空列表 —— 不会拿假事件充数。
+
+**下载与容器**（AI 用量页 → 下载与容器）：aria2 JSON-RPC 与 qBittorrent Web UI 的地址**留空即关闭**；
+容器默认显示（先 `docker ps`，没有 docker 再试 `podman ps`）。这些地址只连本机回环，凭据存在小程序配置里。
+
+**网络页**的延迟与丢包走 `ping -c 3`（异步、60 秒缓存，同一时刻只有一条 ping 在飞）；被防火墙挡住 ICMP 时
+就是 `—`，不写 0。公网 IP 走 `api.ipify.org`，成功缓存 10 分钟、失败安静 60 秒。
+
+费用按会话累计的 `totalCostUSD`（Claude 的 `cost-state` 行）取**每个会话最后一条**，按文件 mtime 归入当日（趋势页）/一周内（汇总），不跨状态相加。
+
+趋势页不做「三源堆叠」：token 和积分不是同一种量，混在一张图上每根柱子的高度都没有意义，
+所以每个来源一行、各自标尺、各自单位。行序固定（Claude → DSH → WorkBuddy），不会随异步返回顺序跳舞。
+
+配额预警（设置 → AI 用量页 → 提醒）在额度越过预警线、告警线时各弹一次通知；只在**跨过**阈值时响，
+85% 之后继续涨不会再响；上下文占用不算配额，不参与预警。
 
 ## 设置
 
@@ -123,7 +149,7 @@ uuid 是 `mintdeck@bigmalove`，已按 Cinnamon Spices 的目录规范提交到
 ## 开发
 
 ```bash
-node --test tests/*.test.js     # 测试：几何/自动尺寸/主题/日志/供应商/procfs 解析/歌词/多语言
+node --test tests/*.test.js     # 270 项：几何/自动尺寸/主题/日志/供应商/procfs/歌词/多语言/预警/逐日桶/番茄钟/面板绘制
 tools/dev-reload.sh             # 改完代码热重载 applet
 tools/i18n.sh build             # 改过文案或 po 之后：重生成 i18nData.js 与 .mo
 ```
@@ -136,8 +162,8 @@ tools/i18n.sh build             # 改过文案或 po 之后：重生成 i18nData
 mintdeck@bigmalove/            # applet 本体（安装时软链到 ~/.local/share/cinnamon/applets/）
 ├── applet.js              # 生命周期、hover 状态机、设置绑定
 ├── settings-schema.json   # 设置项（Cinnamon 自动生成配置界面）
-├── lib/core/              # 纯 JS：几何、主题、日志解析、供应商、计价、i18n（node 可测）
-├── lib/linux/             # MPRIS、procfs、歌词 HTTP
+├── lib/core/              # 纯 JS：几何、主题、日志解析、供应商、计价、i18n、番茄钟状态机、配额预警
+├── lib/linux/             # MPRIS、procfs、sysfs、歌词/公网 IP（HTTP）、aria2/qBittorrent、日历 ICS
 ├── lib/deck/              # St/Clutter：收起态、面板、数据接线
 ├── lib/ui/                # cairo 画环、颜色工具
 ├── themes/                # 8 套主题（与 BrimDeck 同格式，可直接互换）
@@ -157,7 +183,14 @@ tools/i18n-*.py            # 抽 msgid → pot、pot → i18nData.js + .mo
 - **Claude 配额**：本机没有 `~/.claude/.credentials.json` 时不请求在线配额，只显示本地用量（标「最近记录 N 天前」）。有 `CLAUDE_CODE_OAUTH_TOKEN` 时才会走 `api.anthropic.com/api/oauth/usage`。
 - **WorkBuddy 配额**：5 小时 / 每周额度只在服务端（`/billing/meter/get-user-resource-summary` 等），本地没有任何缓存，也不解 Chromium 的加密 cookie —— 所以这一列只给「上下文占用 + 积分消耗」，配额槽显示 `—`。本地用量字段语义：`session_usage.used/size` 是**最近一次请求的上下文占用/窗口**（不是累计），`credit_json` 求和才是该会话消耗的积分。
 - **DSH 首次启动慢**：218 个会话要逐个 `zstd -dc`，约 5.6s，分片跑不卡 shell；解析结果缓存在 `~/.cache/mintdeck/usage-cache.json`（3.8MB），第二次 18ms。
-- 未移植：模型明细页、日期范围统计、主题编辑器 GUI、自定义脚本源、价格表自动同步、WSL 跨系统读取。
+- 未移植：模型明细页、主题编辑器 GUI、自定义脚本源、价格表自动同步、WSL 跨系统读取。（日期范围统计已由「用量趋势」页覆盖，窗口固定 14 天）
+- **网络页的「—」**：无线网卡的 `/sys/class/net/<if>/speed` 在多数驱动上读不到（EINVAL）→ 链路速率显示 `—`；
+  ICMP 被防火墙挡住时延迟与丢包也是 `—`；公网 IP 请求失败时同样留空。这是「不可用」而不是 0。
+- **日历**：只读本机 Evolution 的 `.ics`（Cinnamon 自带的 calendar applet 走 `CalendarServer`，但没装 EDS 或没打开过日历时那条通道不存在，文件路径更稳）。Google 日历等外部账户要先在系统日历里同步下来。
+  重复事件只展开 DAILY / WEEKLY / MONTHLY / YEARLY（含 INTERVAL / COUNT / UNTIL）；带 `BYDAY` / `BYMONTHDAY` 等规则的按单次事件处理 —— 宁可少显示，也不凭空多出一条不存在的会。
+- **下载与容器**：只连本机回环地址的 aria2 / qBittorrent；没装 docker 且没装 podman 时容器那行显示「未检测到容器运行时」，不是 0。
+- **温度 / 风扇 / 频率**：`/sys/class/thermal`、`/sys/class/hwmon`、`cpufreq` 三者缺哪个就那一行显示 `—`；
+  台式机没有 `fan*_input` 很常见。频率取各核平均（`avgMhz`），不是单核峰值。
 
 ## 许可
 
@@ -176,6 +209,12 @@ tools/i18n-*.py            # 抽 msgid → pot、pot → i18nData.js + .mo
 | `collapsed.png` / `collapsed-dark.png` | 收起态：内容自动伸缩的黑条 |
 | `style-notch.png` / `style-capsule.png` / `style-line.png` | 三种外观：刘海 / 胶囊 / 指示条 |
 | `usage.png` | 展开面板 → AI 用量页（配额槽 + 今日/七日 Token 或积分） |
+| `trend.png` | 展开面板 → 用量趋势页（每源 14 天柱状图，各自单位） |
+| `focus.png` | 展开面板 → 专注计时页（倒计时 + 进度 + 轮次点 + 三个按钮） |
+| `monitor-detail.png` | 系统监控 → 详情屏（磁盘 / 温度 / 风扇 / 频率） |
+| `network.png` | 展开面板 → 网络页（接口 / 延迟与丢包 / 公网 IP / 上下行） |
+| `agenda.png` | 展开面板 → 日程页（月历 + 今日/接下来 + 天气） |
+| `tasks.png` | 展开面板 → 任务页（下载进度 / 容器 / 失败单元） |
 | `music.png` | 展开面板 → 音乐页（MPRIS，含歌词） |
 | `monitor.png` | 展开面板 → 系统监控页（CPU / 内存 / GPU / 网速） |
 | `settings-size.png` / `size-tiers.png` | 设置里的尺寸档位与实际三档对比 |

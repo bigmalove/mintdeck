@@ -9,6 +9,16 @@ const GLib = imports.gi.GLib;
 const Mpris = imports.lib.linux.mpris;
 const Sysmon = imports.lib.linux.sysmon;
 const Lyrics = imports.lib.linux.lyrics;
+const Netinfo = imports.lib.linux.netinfo;
+const Sysfs = imports.lib.linux.sysfs;
+
+// 这三块是「可选数据源」：模块文件缺失或某个依赖没装时，宁可整块关掉，也不能让整个 applet 起不来。
+let Calendar = null;
+try { Calendar = imports.lib.linux.calendar; } catch (e) { Calendar = null; }
+let Weather = null;
+try { Weather = imports.lib.linux.weather; } catch (e) { Weather = null; }
+let Tasks = null;
+try { Tasks = imports.lib.linux.tasks; } catch (e) { Tasks = null; }
 
 // ---------------------------------------------------------------- 音乐
 
@@ -225,6 +235,136 @@ function startMonitor(applet, onChange) {
     };
 }
 
+// ---------------------------------------------------------------- 网络质量
+
+// 30 秒一轮：链路状态是同步读的，先出一帧；延迟（ping）与公网 IP 各自异步，回来再补帧。
+// 两轮之间 UI 用上一帧顶着 —— 面板上最忌讳「每 30 秒闪成一片 —」。
+function startNetQuality(onChange) {
+    let last = { latency: null, publicIp: null, link: null };
+    let handle = null;
+
+    const refresh = () => {
+        try {
+            handle = Netinfo.collectAsync((sample) => {
+                last = sample;
+                try { onChange(sample); } catch (e) { /* 单个回调坏了不影响下一轮 */ }
+            });
+        } catch (e) { /* 采集层整个起不来 → 保持上一帧，由 UI 的「不可用」兜底 */ }
+    };
+
+    refresh();
+    const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => { refresh(); return true; });
+    return function stop() {
+        if (id) GLib.source_remove(id);
+        try { if (handle && handle.abort) handle.abort(); } catch (e) { }
+    };
+}
+
+// ---------------------------------------------------------------- 系统详情（监控页第二屏）
+
+// 磁盘（statvfs）/ 温度 / 风扇 / 频率。10 秒一轮就够：这些量变化慢，而面板一次只展开几秒。
+// 频率跟监控页同源（Sysmon.frequencyMhz 只读 procfs，同步且便宜），这里借过来不另起采样。
+function startSysinfo(onChange) {
+    const paths = ['/', GLib.get_home_dir()];
+
+    const sample = () => {
+        let out = {
+            disks: [],
+            thermal: { celsius: null, source: null, zones: [] },
+            fan: { rpm: null, fans: [] },
+            freqMhz: null
+        };
+        try {
+            const s = Sysfs.collect(paths);
+            if (s) {
+                out.disks = s.disks || [];
+                out.thermal = s.thermal || out.thermal;
+                out.fan = s.fan || out.fan;
+            }
+        } catch (e) { /* 整块不可用就保持空结构，UI 会显示 — 而不是 0 */ }
+        try {
+            // frequencyMhz() 回的是 { avgMhz, perCore }（sysmon.js:355），不是裸数字；
+            // 这里取各核平均，UI 只显示一个「3.68 GHz」。
+            const f = Sysmon.frequencyMhz();
+            const mhz = f && Number.isFinite(f.avgMhz) ? f.avgMhz
+                : (Number.isFinite(f) ? f : null);
+            if (mhz && mhz > 0) out.freqMhz = mhz;
+        } catch (e) { /* 频率读不到就是 null */ }
+        try { onChange(out); } catch (e) { /* 回调坏了不影响下一轮 */ }
+    };
+
+    sample();
+    const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => { sample(); return true; });
+    return function stop() {
+        if (id) GLib.source_remove(id);
+    };
+}
+
+// ---------------------------------------------------------------- 日程 / 天气 / 任务
+
+// 日程：5 分钟扫一次（日历文件不会秒级变化）。collectAsync 已经不抛，这里只负责定时与停表。
+function startCalendar(onChange) {
+    let handle = null;
+    const refresh = () => {
+        if (!Calendar || typeof Calendar.collectAsync !== 'function') { onChange(null); return; }
+        try {
+            handle = Calendar.collectAsync((result) => {
+                try { onChange(result || null); } catch (e) { /* 回调坏了不影响下一轮 */ }
+            });
+        } catch (e) { onChange(null); }
+    };
+    refresh();
+    const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 300, () => { refresh(); return true; });
+    return function stop() {
+        if (id) GLib.source_remove(id);
+        try { if (handle && handle.abort) handle.abort(); } catch (e) { }
+    };
+}
+
+// 天气：城市留空 = 不发请求（不猜经纬度）。10 分钟一次，模块内部还有 10 分钟缓存。
+function startWeather(city, onChange) {
+    if (!city || !Weather || typeof Weather.fetchWeather !== 'function') {
+        onChange(null);
+        return function stop() { };
+    }
+    let dead = false;
+    const refresh = () => {
+        try {
+            Weather.fetchWeather(city, (w) => {
+                if (dead) return;
+                try { onChange(w || null); } catch (e) { }
+            });
+        } catch (e) { if (!dead) onChange(null); }
+    };
+    refresh();
+    const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 600, () => { refresh(); return true; });
+    return function stop() {
+        dead = true;
+        if (id) GLib.source_remove(id);
+    };
+}
+
+// 任务：10 秒一次（下载进度要动）。opts 是函数，每次采样前现读设置，改配置立刻生效。
+function startTasks(opts, onSample) {
+    let handle = null;
+    const refresh = () => {
+        if (!Tasks || typeof Tasks.collectAsync !== 'function') { onSample(null); return; }
+        let options = null;
+        try { options = typeof opts === 'function' ? opts() : opts; } catch (e) { options = null; }
+        try {
+            handle = Tasks.collectAsync(options || {}, (sample) => {
+                try { onSample(sample || null); } catch (e) { }
+            });
+        } catch (e) { onSample(null); }
+    };
+    refresh();
+    const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => { refresh(); return true; });
+    return function stop() {
+        if (id) GLib.source_remove(id);
+        try { if (handle && handle.abort) handle.abort(); } catch (e) { }
+    };
+}
+
 function fmtRate(bytesPerSec) {
     const v = Number(bytesPerSec) || 0;
     if (v >= 1024 * 1024) return (v / 1048576).toFixed(1) + ' MB/s';
@@ -233,5 +373,6 @@ function fmtRate(bytesPerSec) {
 }
 
 if (typeof module !== 'undefined') {
-    module.exports = { startMusic: startMusic, startMonitor: startMonitor, lyricIndexFor: lyricIndexFor, fmtRate: fmtRate };
+    module.exports = { startMusic: startMusic, startMonitor: startMonitor, startNetQuality: startNetQuality, startSysinfo: startSysinfo,
+    startCalendar: startCalendar, startWeather: startWeather, startTasks: startTasks, lyricIndexFor: lyricIndexFor, fmtRate: fmtRate };
 }

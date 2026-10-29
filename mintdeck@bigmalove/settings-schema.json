@@ -20,7 +20,12 @@
     "page-behavior": {
       "type": "page",
       "title": "行为",
-      "sections": ["section-interaction", "section-display"]
+      "sections": ["section-interaction", "section-display", "section-focus"]
+    },
+    "section-focus": {
+      "type": "section",
+      "title": "专注计时",
+      "keys": ["focusWorkMinutes", "focusShortMinutes", "focusLongMinutes", "focusLongEvery", "focusAutoAdvance", "focusInIsland", "focusNotify"]
     },
     "section-style": {
       "type": "section",
@@ -56,6 +61,16 @@
       "type": "section",
       "title": "提醒",
       "keys": ["quotaAlerts", "warningPercent", "criticalPercent"]
+    },
+    "section-day": {
+      "type": "section",
+      "title": "日程与天气",
+      "keys": ["weatherCity"]
+    },
+    "section-tasks": {
+      "type": "section",
+      "title": "下载与容器",
+      "keys": ["aria2Url", "aria2Secret", "qbUrl", "qbUser", "qbPass", "showContainers"]
     },
     "section-interaction": {
       "type": "section",
@@ -230,14 +245,105 @@
     "description": "默认页",
     "options": {
       "AI 用量": "usage",
+      "用量趋势": "trend",
+      "日程": "agenda",
+      "专注计时": "focus",
       "音乐": "music",
-      "系统监控": "monitor"
+      "系统监控": "monitor",
+      "网络": "network",
+      "任务": "tasks"
     }
   },
   "hotkeyToggle": {
     "type": "keybinding",
     "default": "",
     "description": "展开或收起面板"
+  },
+  "focusWorkMinutes": {
+    "type": "spinbutton",
+    "default": 25,
+    "min": 1,
+    "max": 180,
+    "step": 5,
+    "units": "分钟",
+    "description": "专注时长"
+  },
+  "focusShortMinutes": {
+    "type": "spinbutton",
+    "default": 5,
+    "min": 1,
+    "max": 60,
+    "step": 1,
+    "units": "分钟",
+    "description": "短休息"
+  },
+  "focusLongMinutes": {
+    "type": "spinbutton",
+    "default": 15,
+    "min": 1,
+    "max": 120,
+    "step": 5,
+    "units": "分钟",
+    "description": "长休息"
+  },
+  "focusLongEvery": {
+    "type": "spinbutton",
+    "default": 4,
+    "min": 1,
+    "max": 12,
+    "step": 1,
+    "units": "轮",
+    "description": "每几轮一次长休息"
+  },
+  "focusAutoAdvance": {
+    "type": "checkbox",
+    "default": true,
+    "description": "阶段结束自动进入下一段"
+  },
+  "focusInIsland": {
+    "type": "checkbox",
+    "default": true,
+    "description": "专注时在悬浮岛上显示倒计时"
+  },
+  "focusNotify": {
+    "type": "checkbox",
+    "default": true,
+    "description": "专注与休息结束时通知"
+  },
+  "weatherCity": {
+    "type": "entry",
+    "default": "",
+    "description": "天气城市（留空则不请求；中文名可直接填，如 杭州）"
+  },
+  "aria2Url": {
+    "type": "entry",
+    "default": "http://127.0.0.1:6800/jsonrpc",
+    "description": "aria2 JSON-RPC 地址（留空则关闭）"
+  },
+  "aria2Secret": {
+    "type": "entry",
+    "default": "",
+    "description": "aria2 RPC secret（没有就留空）"
+  },
+  "qbUrl": {
+    "type": "entry",
+    "default": "http://127.0.0.1:8080",
+    "description": "qBittorrent Web UI 地址（留空则关闭）"
+  },
+  "qbUser": {
+    "type": "entry",
+    "default": "",
+    "description": "qBittorrent 用户名"
+  },
+  "qbPass": {
+    "type": "entry",
+    "default": "",
+    "description": "qBittorrent 密码"
+  },
+  "showContainers": {
+    "type": "checkbox",
+    "default": true,
+    "description": "显示容器与 systemd 失败单元"
   },
   "monitor": {
     "type": "combobox",

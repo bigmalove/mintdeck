@@ -19,7 +19,22 @@ const I18n = imports.lib.core.i18n;
 // 所以设置里换语言不用重建 panel（顶层常量会把中文冻结在加载那一刻）。
 const _ = I18n.t;
 
-const PAGES = ['usage', 'music', 'monitor'];
+// 页签注册表。加一页只动这里：顺序 = 工具栏从左到右，paint 是方法名（_paintLayer 按 id 查表分发），
+// height 为 0 表示「按内容算」（AI 用量页由 setUsage 现算），其余是固定高度。
+// 以前是 PAGES 数组 + if/else 链 + setPage 里的三元表达式三处一起改，加第四页时必漏一处。
+const PAGE_DEFS = [
+    { id: 'usage', paint: '_paintUsage', height: 0 },
+    { id: 'trend', paint: '_paintTrend', height: 252 },
+    { id: 'agenda', paint: '_paintAgenda', height: 252 },
+    { id: 'focus', paint: '_paintFocus', height: 252 },
+    { id: 'music', paint: '_paintMusic', height: 268 },
+    { id: 'monitor', paint: '_paintMonitor', height: 262 },
+    { id: 'network', paint: '_paintNetwork', height: 226 },
+    { id: 'tasks', paint: '_paintTasks', height: 246 }
+];
+const PAGES = PAGE_DEFS.map(d => d.id);
+const PAGE_BY_ID = {};
+for (const def of PAGE_DEFS) PAGE_BY_ID[def.id] = def;
 
 // 页签在画布上只有图标（与上游一致），页名只出现在设置项的「默认页」里，
 // 那部分由 settings-schema.json 的 po 条目负责，所以这里不需要页名表。
@@ -34,6 +49,8 @@ const DEFAULT_COLORS = {
 const F = {
     title: 'Noto Sans 15',          // L.name
     big: 'Noto Sans 20',            // L.number
+    huge: 'Noto Sans 40',           // 番茄钟倒计时
+    mid: 'Noto Sans 17',            // 网络页读数
     body: 'Noto Sans 12',           // L.label
     small: 'Noto Sans 10.5',        // L.plan / L.reset 之间
     foot: 'Noto Sans 12',           // L.foot
@@ -62,6 +79,13 @@ var Panel = class Panel {
         this._columns = [];
         this._now = null;
         this._monitor = null;
+        this._trend = null;         // { days: [startMs], series: [{key,name,unit,color,values,usd}] }
+        this._focus = null;         // 番茄钟快照：{ phase, timeText, progress, rounds, longEvery, running }
+        this._network = null;       // 网络质量：{ iface, operstate, speedMbps, rttMs, lossPercent, publicIp, rxKbps, txKbps, status }
+        this._sysinfo = null;       // 磁盘 / 温度 / 风扇 / 频率：{ disks, thermal, fan, freqMhz }
+        this._monitorDetail = false; // 监控页当前是不是「详情」屏
+        this._agenda = null;        // 月历 / 今日与近期日程 / 天气
+        this._tasks = null;         // 下载任务 / 容器 / 失败的 systemd 单元
         this._hots = [];
         this._coverSurface = null;
         this._coverUri = '';
@@ -88,7 +112,8 @@ var Panel = class Panel {
         const changed = id !== this._page;
         const from = this._page;
         this._page = id;
-        this._height = id === 'music' ? 268 : id === 'monitor' ? 262 : (this._usageHeight || 158);
+        const def = PAGE_BY_ID[id] || PAGE_DEFS[0];
+        this._height = def.height > 0 ? def.height : (this._usageHeight || 158);
         this.actor.set_size(this._width, this._height);
 
         if (animated && changed) {
@@ -141,6 +166,27 @@ var Panel = class Panel {
     }
 
     setMonitor(sample) { this._monitor = sample; this.actor.queue_repaint(); return false; }
+
+    // 趋势页的数据：{ days: [每天 0 点的 epoch ms], series: [{key, name, unit, color, values, usd}] }
+    // series 由 data.js 组装，面板只负责画 —— 它不认识「Claude」或「积分」，单位靠 unit 字段。
+    setTrend(trend) { this._trend = trend || null; this.actor.queue_repaint(); return false; }
+
+    // 番茄钟快照。时间文本由 applet 用 pomodoro.format() 算好，面板不碰状态机。
+    setFocus(focus) { this._focus = focus || null; this.actor.queue_repaint(); return false; }
+
+    // 网络质量。字段缺失（null）就是「不可用」，照实画 —，不补 0。
+    setNetwork(net) { this._network = net || null; this.actor.queue_repaint(); return false; }
+
+    // 系统详情（磁盘 / 温度 / 风扇 / 频率），监控页第二屏用
+    setSysinfo(info) { this._sysinfo = info || null; this.actor.queue_repaint(); return false; }
+
+    // 日程页：{ dateText, year, month0, todayDay, eventDays:[day], today:[{timeText,summary}],
+    //           upcoming:[{dayText, timeText, summary}], weather:{kind, tempText, kindText, rangeText}|null }
+    setAgenda(agenda) { this._agenda = agenda || null; this.actor.queue_repaint(); return false; }
+
+    // 任务页：{ downloads:{source, speedText, active:[{name,percent,meta}], stopped, total}|null,
+    //           containers:{total, running, names:[]}|null, failed:[unit]|null, note:string|null }
+    setTasks(tasks) { this._tasks = tasks || null; this.actor.queue_repaint(); return false; }
 
     show(animated, duration) {
         if (this.actor.visible) return;
@@ -227,9 +273,8 @@ var Panel = class Panel {
         cr.save();
         cr.pushGroup();
         cr.translate(dx, 0);
-        if (page === 'usage') this._paintUsage(cr, w, h);
-        else if (page === 'music') this._paintMusic(cr, w, h);
-        else this._paintMonitor(cr, w, h);
+        const def = PAGE_BY_ID[page];
+        if (def && typeof this[def.paint] === 'function') this[def.paint](cr, w, h);
         cr.popGroupToSource();
         cr.paintWithAlpha(Math.max(0, Math.min(1, alpha)));
         cr.restore();
@@ -313,6 +358,45 @@ var Panel = class Panel {
             cr.newSubPath(); cr.moveTo(19, 21); cr.lineTo(19, 10); cr.stroke();
             cr.newSubPath(); cr.moveTo(3, 12); cr.lineTo(9, 6); cr.lineTo(14, 10); cr.lineTo(21, 3); cr.stroke();
             cr.newSubPath(); cr.moveTo(16, 3); cr.lineTo(21, 3); cr.lineTo(21, 8); cr.stroke();
+        } else if (id === 'trend') {
+            // 5 点折线 + 基线：与「用量」页的柱状区分开，别让两个页签看起来像同一张图
+            cr.newSubPath(); cr.moveTo(2, 21); cr.lineTo(22, 21); cr.stroke();
+            cr.newSubPath();
+            cr.moveTo(2, 16.5); cr.lineTo(7, 10.5); cr.lineTo(12, 13.5);
+            cr.lineTo(17, 7); cr.lineTo(22, 9);
+            cr.stroke();
+            cr.newSubPath(); cr.arc(17, 7, 1.6, 0, Math.PI * 2); cr.fill();
+        } else if (id === 'agenda') {
+            // 日历：圆角方框 + 两个挂环 + 六个点
+            Draw.roundedRectPath(cr, 4, 6, 16, 15, 2.5); cr.stroke();
+            cr.newSubPath(); cr.moveTo(8, 3.5); cr.lineTo(8, 7.5); cr.stroke();
+            cr.newSubPath(); cr.moveTo(16, 3.5); cr.lineTo(16, 7.5); cr.stroke();
+            for (let gy = 0; gy < 2; gy++) {
+                for (let gx = 0; gx < 3; gx++) {
+                    cr.newSubPath();
+                    cr.arc(8 + gx * 4, 11.5 + gy * 4.5, 1.1, 0, Math.PI * 2);
+                    cr.fill();
+                }
+            }
+        } else if (id === 'tasks') {
+            // 下载：向下箭头 + 托盘
+            cr.newSubPath(); cr.moveTo(12, 3); cr.lineTo(12, 13); cr.stroke();
+            cr.newSubPath(); cr.moveTo(8.5, 9.8); cr.lineTo(12, 13.4); cr.lineTo(15.5, 9.8); cr.stroke();
+            cr.newSubPath(); cr.moveTo(4, 15.5); cr.lineTo(4, 20); cr.lineTo(20, 20); cr.lineTo(20, 15.5); cr.stroke();
+        } else if (id === 'focus') {
+            // 番茄钟：表盘 + 12 点指针 + 一小段更粗的进度弧（与「系统监控」的心电波形区分开）
+            cr.newSubPath(); cr.arc(12, 13, 8, 0, Math.PI * 2); cr.stroke();
+            cr.newSubPath(); cr.moveTo(12, 13); cr.lineTo(12, 8); cr.stroke();
+            cr.newSubPath(); cr.moveTo(12, 13); cr.lineTo(15.5, 15); cr.stroke();
+            cr.lineWidth = 3.2;
+            cr.newSubPath(); cr.arc(12, 13, 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 0.5); cr.stroke();
+            cr.lineWidth = 1.72;
+        } else if (id === 'network') {
+            // 无线信号：三层弧 + 底部一点
+            cr.newSubPath(); cr.arc(12, 19, 10, -Math.PI * 0.78, -Math.PI * 0.22); cr.stroke();
+            cr.newSubPath(); cr.arc(12, 19, 6.4, -Math.PI * 0.74, -Math.PI * 0.26); cr.stroke();
+            cr.newSubPath(); cr.arc(12, 19, 2.8, -Math.PI * 0.66, -Math.PI * 0.34); cr.stroke();
+            cr.newSubPath(); cr.arc(12, 19, 1.2, 0, Math.PI * 2); cr.fill();
         } else if (id === 'music') {
             // 音符：双竖线 + 斜顶 + 两个符头
             cr.newSubPath();
@@ -580,7 +664,25 @@ var Panel = class Panel {
 
     // ---------------------------------------------------------------- 系统监控
 
+    // 监控页有两屏：概览（CPU / 内存 / GPU / 网速 / TOP 进程）与详情（磁盘 / 温度 / 风扇 / 频率）。
+    // 用哪一屏只存在 panel 里，不写设置：这是「我现在想看什么」，不是长期偏好。
     _paintMonitor(cr, w, h) {
+        if (this._monitorDetail) this._paintMonitorDetail(cr, w, h);
+        else this._paintMonitorOverview(cr, w, h);
+        this._paintViewToggle(cr, w, h);
+    }
+
+    // 页脚右下的切换入口：概览上写「详情 ›」，详情页上写「‹ 概览」
+    _paintViewToggle(cr, w, h) {
+        const label = this._monitorDetail ? '\u2039 ' + _('概览') : _('详情') + ' \u203a';
+        const m = this._measure(cr, label, F.small);
+        const x = w - PAD - m.w;
+        const y = h - L.bottom - 12;
+        this._text(cr, label, x, y, F.small, this._color('textTertiary'));
+        this._hots.push({ x: x - 8, y: y - 8, w: m.w + 16, h: m.h + 16, action: 'monitor:toggleDetail' });
+    }
+
+    _paintMonitorOverview(cr, w, h) {
         const s = this._monitor;
         if (!s) {
             this._text(cr, _('采样未接入'), PAD, HEADER_H + 20, F.body, this._color('textTertiary'));
@@ -653,6 +755,513 @@ var Panel = class Panel {
         }
     }
 
+    // ---------------------------------------------------------------- 用量趋势
+
+    // 每个来源一行「小倍数」柱状图：各自单位、各自刻度。
+    // 硬凑成一张堆叠图看着整齐，但 token 和积分不是同一种量，混轴读出来全是错的。
+    _paintTrend(cr, w, h) {
+        const top = HEADER_H + 8;
+        const trend = this._trend;
+        // 顺序按 order 固定：Claude / DSH / WorkBuddy 各自异步回来，不排序的话三行会随到达顺序跳舞
+        const series = (trend && Array.isArray(trend.series))
+            ? trend.series.slice().sort((a, b) => (a.order === undefined ? 99 : a.order) - (b.order === undefined ? 99 : b.order))
+            : [];
+        if (!series.length) {
+            this._text(cr, _('暂无用量数据'), PAD, top + 8, F.body, this._color('textTertiary'));
+            return;
+        }
+
+        // 行高平均分，图块（标题行 + 柱区）在行内垂直居中；柱区高度固定，
+        // 这样三行之间的留白一致，不会第一行贴顶、最后一行压页脚。
+        const footerH = 22;
+        const titleH = 18;
+        const barGap = 7;
+        const barsH = 24;
+        const blockH = titleH + barGap + barsH;
+        const rowH = Math.max(blockH + 4, Math.floor((h - top - L.bottom - footerH) / series.length));
+        const gap = 4;
+        const innerW = w - PAD * 2;
+
+        for (let si = 0; si < series.length; si++) {
+            const s = series[si];
+            const values = Array.isArray(s.values) ? s.values : [];
+            const n = values.length;
+            if (!n) continue;
+            const y = top + si * rowH + Math.max(0, Math.round((rowH - blockH) / 2));
+
+            // 名字 + 单位（单位决定怎么格式化，面板不需要认识具体工具）
+            const nm = this._text(cr, s.name || '', PAD, y, F.body,
+                this._color('textPrimary'), { width: Math.max(80, innerW * 0.55) });
+            const unit = s.unit === 'credits' ? _('积分 / 天') : _('Token / 天');
+            this._text(cr, unit, PAD + Math.min(nm.w, innerW * 0.55) + 8, y + 1, F.small, this._color('textTertiary'));
+
+            // 右侧：今日 + 窗口合计
+            const today = Number(values[n - 1]) || 0;
+            let sum = 0;
+            for (let i = 0; i < n; i++) sum += Number(values[i]) || 0;
+            const right = _('今日 %s', fmtCount(today)) + ' · ' + _('合计 %s', fmtCount(sum));
+            const rm = this._measure(cr, right, F.small);
+            this._text(cr, right, w - PAD - rm.w, y + 1, F.small, this._color('textTertiary'));
+
+            // 柱子：0 值不画填充，只剩轨道 —— 与「不可用 ≠ 0」一致，空格子就是那天没用量
+            const by = y + titleH + barGap;
+            const bw = Math.max(3, (innerW - gap * (n - 1)) / n);
+            let peak = 1;
+            for (let i = 0; i < n; i++) peak = Math.max(peak, Number(values[i]) || 0);
+            const raw = s.color || this._rawColor('accent');
+            const col = Draw.parseColor(Draw.cssColor(raw));
+            for (let i = 0; i < n; i++) {
+                const x = PAD + i * (bw + gap);
+                Draw.setColor(cr, this._color('track'));
+                Draw.roundedRectPath(cr, x, by, bw, barsH, 3);
+                cr.fill();
+                const v = Math.max(0, Number(values[i]) || 0);
+                if (v <= 0) continue;
+                const bh = Math.max(2, barsH * Math.min(1, v / peak));
+                cr.setSourceRGBA(col.r, col.g, col.b, i === n - 1 ? col.a : 0.55 * col.a);
+                Draw.roundedRectPath(cr, x, by + barsH - bh, bw, bh, 3);
+                cr.fill();
+            }
+        }
+
+        // 页脚：窗口长度与日期范围（数字不带语言，只有「最近 %s 天」需要翻译）
+        const days = (trend && Array.isArray(trend.days)) ? trend.days : [];
+        const n = days.length || series[0].values.length;
+        const caption = _('最近 %s 天', n);
+        this._text(cr, caption, PAD, h - L.bottom - 12, F.small, this._color('textTertiary'));
+        if (days.length) {
+            const range = fmtDay(days[0]) + ' – ' + fmtDay(days[days.length - 1]);
+            const rm = this._measure(cr, range, F.small);
+            this._text(cr, range, w - PAD - rm.w, h - L.bottom - 12, F.small, this._color('textTertiary'));
+        }
+    }
+
+    // ---------------------------------------------------------------- 系统详情（监控页第二屏）
+
+    _paintMonitorDetail(cr, w, h) {
+        const s = this._sysinfo;
+        const top = HEADER_H + 10;
+        if (!s) {
+            this._text(cr, _('采样未接入'), PAD, top, F.body, this._color('textTertiary'));
+            return;
+        }
+        const gap = 24;
+        const colW = Math.round((w - PAD * 2 - gap) / 2);
+        const leftX = PAD;
+        const rightX = PAD + colW + gap;
+
+        // 左半：磁盘（多挂载点时只画第一条，避免把一屏塞满）
+        const disks = Array.isArray(s.disks) ? s.disks : [];
+        const disk = disks[0] || null;
+        this._text(cr, _('磁盘'), leftX, top, F.small, this._color('textTertiary'));
+        if (disk) {
+            const pct = Number.isFinite(disk.percent) ? Math.max(0, Math.min(100, disk.percent)) : null;
+            this._text(cr, pct === null ? '—' : Math.round(pct) + '%', leftX, top + 14, F.big, this._color('textPrimary'));
+            const mount = disk.mount || '/';
+            const mm = this._measure(cr, mount, F.small);
+            this._text(cr, mount, leftX + 62, top + 22, F.small, this._color('textTertiary'));
+            // "412 GB / 931 GB" 只是两个数之间加一条斜杠，没有可翻译的文字，别为它造 msgid
+            this._text(cr, fmtBytes(disk.usedBytes) + ' / ' + fmtBytes(disk.totalBytes),
+                leftX, top + 44, F.small, this._color('textSecondary'));
+            Draw.setColor(cr, this._color('track'));
+            Draw.roundedRectPath(cr, leftX, top + 66, colW, 6, 3);
+            cr.fill();
+            if (pct !== null) {
+                Draw.setColor(cr, pct >= 90 ? this._color('danger') : this._color('accent'));
+                Draw.roundedRectPath(cr, leftX, top + 66, Math.max(6, colW * pct / 100), 6, 3);
+                cr.fill();
+            }
+            // 第二条挂载点只给一行小字（/home 单独分区的人用得着，又不抢版面）
+            if (disks.length > 1) {
+                const d2 = disks[1];
+                const p2 = Number.isFinite(d2.percent) ? Math.round(d2.percent) + '%' : '—';
+                this._text(cr, (d2.mount || '') + ' · ' + p2, leftX, top + 84, F.small, this._color('textTertiary'));
+            }
+        } else {
+            this._text(cr, _('不可用'), leftX, top + 16, F.body, this._color('textTertiary'));
+        }
+
+        // 右半：温度 / 风扇 / 频率，三行右对齐（数值右边缘对齐，扫一眼就能比大小）
+        const thermal = s.thermal || {};
+        const fan = s.fan || {};
+        const rows = [
+            [_('温度'), Number.isFinite(thermal.celsius) ? Math.round(thermal.celsius) + '°C' : '—'],
+            [_('风扇'), Number.isFinite(fan.rpm) ? Math.round(fan.rpm) + ' rpm' : '—'],
+            [_('频率'), Number.isFinite(s.freqMhz) ? (s.freqMhz / 1000).toFixed(2) + ' GHz' : '—']
+        ];
+        let ry = top;
+        for (const row of rows) {
+            this._text(cr, row[0], rightX, ry, F.small, this._color('textTertiary'));
+            const vm = this._measure(cr, row[1], F.mid);
+            this._text(cr, row[1], rightX + colW - vm.w, ry - 4, F.mid, this._color('textPrimary'));
+            ry += 32;
+        }
+    }
+
+    // ---------------------------------------------------------------- 专注（番茄钟）
+
+    // 面板只负责画：时间文本与进度由 applet 用 lib/core/pomodoro.js 算好再传进来。
+    _paintFocus(cr, w, h) {
+        const f = this._focus;
+        const top = HEADER_H + 4;
+        const phase = f ? (f.phase || 'idle') : 'idle';
+        const timeText = (f && f.timeText) || '00:00';
+        const running = !!(f && f.running);
+
+        // 40px 的字行高接近 54，阶段名必须按实测高度往下排，不能写死 50 —— 那会压在数字上
+        const tm = this._measure(cr, timeText, F.huge);
+        this._text(cr, timeText, Math.round((w - tm.w) / 2), top,
+            F.huge, this._color(running ? 'textPrimary' : 'textSecondary'));
+        const labelY = top + Math.max(46, tm.h) + 6;
+
+        const pm = this._measure(cr, phaseLabel(phase), F.body);
+        this._text(cr, phaseLabel(phase), Math.round((w - pm.w) / 2), labelY, F.body, this._color('textSecondary'));
+
+        // 进度条
+        const p = f && Number.isFinite(f.progress) ? Math.max(0, Math.min(1, f.progress)) : 0;
+        const barY = labelY + Math.max(20, pm.h) + 8;
+        Draw.setColor(cr, this._color('track'));
+        Draw.roundedRectPath(cr, PAD, barY, w - PAD * 2, 4, 2);
+        cr.fill();
+        if (p > 0) {
+            Draw.setColor(cr, this._color(isBreakPhase(phase) ? 'textSecondary' : 'accent'));
+            Draw.roundedRectPath(cr, PAD, barY, Math.max(4, (w - PAD * 2) * p), 4, 2);
+            cr.fill();
+        }
+
+        // 轮次点：本组已完成的专注段（长休息时全亮）
+        const every = f && f.longEvery ? f.longEvery : 4;
+        const done = phase === 'long' ? every : (f && f.rounds ? f.rounds % every : 0);
+        const dotGap = 14;
+        const dotsW = (every - 1) * dotGap;
+        const dx0 = Math.round((w - dotsW) / 2);
+        for (let i = 0; i < every; i++) {
+            Draw.setColor(cr, i < done ? this._color('accent') : this._color('track'));
+            cr.newSubPath();
+            cr.arc(dx0 + i * dotGap, barY + 20, 3, 0, Math.PI * 2);
+            cr.fill();
+        }
+
+        // 按钮：主按钮 + 跳过 + 重置
+        const btnY = h - 54;
+        const primary = running ? _('暂停') : (phase === 'idle' ? _('开始') : _('继续'));
+        const bw = 88, sw = 68, gapX = 10;
+        const totalW = bw + sw * 2 + gapX * 2;
+        let bx = Math.round((w - totalW) / 2);
+        this._button(cr, bx, btnY, bw, 30, primary, true, 'focus:toggle');
+        bx += bw + gapX;
+        this._button(cr, bx, btnY, sw, 30, _('跳过'), false, 'focus:skip');
+        bx += sw + gapX;
+        this._button(cr, bx, btnY, sw, 30, _('重置'), false, 'focus:reset');
+    }
+
+    _button(cr, x, y, w, h, label, primary, action) {
+        if (primary) {
+            Draw.setColor(cr, this._color('accent'));
+        } else {
+            Draw.setColor(cr, this._color('switchFill'));
+        }
+        Draw.roundedRectPath(cr, x, y, w, h, Math.min(12, h / 2));
+        cr.fill();
+        const m = this._measure(cr, label, F.body);
+        this._text(cr, label, Math.round(x + (w - m.w) / 2), Math.round(y + (h - m.h) / 2),
+            F.body, this._color(primary ? 'onAccent' : 'textPrimary'));
+        this._hots.push({ x: x, y: y, w: w, h: h, action: action });
+    }
+
+    // ---------------------------------------------------------------- 网络
+
+    _paintNetwork(cr, w, h) {
+        const n = this._network;
+        const top = HEADER_H + 10;
+        if (!n) {
+            this._text(cr, _('采样中…'), PAD, top, F.body, this._color('textTertiary'));
+            return;
+        }
+        const innerW = w - PAD * 2;
+        let y = top;
+
+        // 1) 接口 · 状态 · 链路速率
+        this._text(cr, _('接口'), PAD, y, F.small, this._color('textTertiary'));
+        const stateTxt = n.operstate === 'up' ? _('已连接') : (n.operstate === 'down' ? _('未连接') : '—');
+        const parts = [n.iface || '—', stateTxt];
+        if (Number.isFinite(n.speedMbps) && n.speedMbps > 0) parts.push(fmtLink(n.speedMbps));
+        const line1 = parts.join(' · ');
+        const m1 = this._measure(cr, line1, F.body);
+        this._text(cr, line1, w - PAD - m1.w, y - 2, F.body, this._color('textPrimary'));
+        y += 30;
+
+        // 2) 延迟（大数字） + 丢包
+        this._text(cr, _('延迟'), PAD, y + 4, F.small, this._color('textTertiary'));
+        const rtt = Number.isFinite(n.rttMs) ? n.rttMs.toFixed(n.rttMs >= 10 ? 0 : 1) + ' ms' : '—';
+        this._text(cr, rtt, PAD + 56, y - 6, F.mid, this._color('textPrimary'));
+        const loss = Number.isFinite(n.lossPercent) ? _('丢包 %s', Math.round(n.lossPercent) + '%') : '';
+        if (loss) {
+            const lm = this._measure(cr, loss, F.small);
+            this._text(cr, loss, w - PAD - lm.w, y + 2, F.small, this._color('textSecondary'));
+        }
+        y += 38;
+
+        // 3) 公网 IP
+        this._text(cr, _('公网 IP'), PAD, y, F.small, this._color('textTertiary'));
+        const ip = n.publicIp || '—';
+        const im = this._measure(cr, ip, F.body);
+        this._text(cr, ip, w - PAD - im.w, y - 2, F.body, this._color('textPrimary'));
+        y += 28;
+
+        // 4) 上下行（沿用监控页同一份采样）
+        this._text(cr, _('速率'), PAD, y, F.small, this._color('textTertiary'));
+        const rate = '↓ ' + (n.rxKbps || '—') + '   ↑ ' + (n.txKbps || '—');
+        const rm = this._measure(cr, rate, F.body);
+        this._text(cr, rate, w - PAD - rm.w, y - 2, F.body, this._color('textPrimary'));
+
+        // 页脚：采样口径与失败原因（不编数字，说出「为什么没有」）
+        const note = n.status === 'unavailable' ? _('网络探测不可用') : _('每 %s 秒采样', n.intervalSec || 30);
+        this._text(cr, note, PAD, h - L.bottom - 12, F.small, this._color('textTertiary'));
+    }
+
+    // ---------------------------------------------------------------- 日程 + 天气
+
+    _paintAgenda(cr, w, h) {
+        const a = this._agenda;
+        const top = HEADER_H + 8;
+        if (!a) {
+            this._text(cr, _('采样中…'), PAD, top, F.body, this._color('textTertiary'));
+            return;
+        }
+
+        // 顶行：今天是几号（左） · 天气（右，图标在文字左边）
+        this._text(cr, a.dateText || '', PAD, top, F.body, this._color('textPrimary'));
+        const wth = a.weather;
+        if (wth) {
+            const parts = [wth.tempText || '', wth.kindText || ''];
+            const text = parts.filter(Boolean).join(' ') + (wth.rangeText ? ' · ' + wth.rangeText : '');
+            const m = this._measure(cr, text, F.body);
+            this._text(cr, text, w - PAD - m.w, top, F.body, this._color('textSecondary'));
+            this._weatherIcon(cr, w - PAD - m.w - 26, top + 8, wth.kind);
+        } else if (a.weatherNote) {
+            const m = this._measure(cr, a.weatherNote, F.small);
+            this._text(cr, a.weatherNote, w - PAD - m.w, top + 1, F.small, this._color('textTertiary'));
+        }
+
+        // 左：月历（周一起排，今天带圈，有日程的日子点一下）
+        const gx = PAD;
+        const gridTop = top + 30;
+        const cellW = 26, cellH = 21;
+        // 26px 的格子里放不下「周一」，用单字；en 下是 M/T/W/T/F/S/S
+        const weekdays = [_('一'), _('二'), _('三'), _('四'), _('五'), _('六'), _('日')];
+        for (let i = 0; i < 7; i++) {
+            const m = this._measure(cr, weekdays[i], F.small);
+            this._text(cr, weekdays[i], gx + i * cellW + (cellW - m.w) / 2, gridTop, F.small, this._color('textTertiary'));
+        }
+
+        const first = new Date(a.year, a.month0, 1);
+        const offset = (first.getDay() + 6) % 7;           // 周一是 0
+        const dayCount = new Date(a.year, a.month0 + 1, 0).getDate();
+        const eventDays = {};
+        for (const d of (a.eventDays || [])) eventDays[d] = true;
+
+        for (let d = 1; d <= dayCount; d++) {
+            const idx = offset + d - 1;
+            const cx = gx + (idx % 7) * cellW + cellW / 2;
+            const cy = gridTop + 22 + Math.floor(idx / 7) * cellH + 7;
+            const isToday = d === a.todayDay;
+            if (isToday) {
+                Draw.setColor(cr, this._color('accent'));
+                cr.newSubPath(); cr.arc(cx, cy - 1, 8.5, 0, Math.PI * 2); cr.fill();
+            }
+            const label = String(d);
+            const lm = this._measure(cr, label, F.small);
+            this._text(cr, label, cx - lm.w / 2, cy - 7, F.small,
+                this._color(isToday ? 'onAccent' : 'textSecondary'));
+            if (eventDays[d]) {
+                Draw.setColor(cr, this._color(isToday ? 'onAccent' : 'accent'));
+                cr.newSubPath(); cr.arc(cx, cy + 7, 1.5, 0, Math.PI * 2); cr.fill();
+            }
+        }
+
+        // 右：今天 / 接下来
+        const listX = gx + cellW * 7 + 26;
+        const listW = w - PAD - listX;
+        let ly = top + 24;
+
+        this._text(cr, _('今天'), listX, ly, F.small, this._color('textTertiary'));
+        ly += 17;
+        const today = a.today || [];
+        if (!today.length) {
+            this._text(cr, _('没有日程'), listX, ly, F.body, this._color('textTertiary'));
+            ly += 20;
+        } else {
+            for (const ev of today.slice(0, 3)) {
+                this._text(cr, ev.timeText || '', listX, ly + 1, F.small, this._color('textTertiary'));
+                this._text(cr, ev.summary || '', listX + 46, ly - 1, F.body, this._color('textPrimary'), { width: listW - 46 });
+                ly += 20;
+            }
+        }
+
+        ly += 8;
+        this._text(cr, _('接下来'), listX, ly, F.small, this._color('textTertiary'));
+        ly += 17;
+        const up = a.upcoming || [];
+        if (!up.length) {
+            this._text(cr, _('未来一周没有日程'), listX, ly, F.body, this._color('textTertiary'));
+        } else {
+            for (const ev of up.slice(0, 3)) {
+                this._text(cr, ev.dayText || '', listX, ly + 1, F.small, this._color('textTertiary'));
+                this._text(cr, ev.summary || '', listX + 56, ly - 1, F.body, this._color('textSecondary'), { width: listW - 56 });
+                ly += 20;
+            }
+        }
+    }
+
+    // 天气图标：只画能一眼认出的几种；不认识的 kind 什么也不画（文字里已经有天气名）
+    _weatherIcon(cr, cx, cy, kind) {
+        if (!kind) return;
+        const color = this._color('textSecondary');
+        Draw.setColor(cr, color);
+        cr.setLineWidth(1.3);
+        cr.setLineCap(1);
+
+        if (kind === 'clear') {
+            cr.newSubPath(); cr.arc(cx, cy, 4.2, 0, Math.PI * 2); cr.fill();
+            for (let i = 0; i < 8; i++) {
+                const ang = i * Math.PI / 4;
+                cr.newSubPath();
+                cr.moveTo(cx + Math.cos(ang) * 6.2, cy + Math.sin(ang) * 6.2);
+                cr.lineTo(cx + Math.cos(ang) * 8.4, cy + Math.sin(ang) * 8.4);
+                cr.stroke();
+            }
+            return;
+        }
+        if (kind === 'fog') {
+            for (let i = 0; i < 3; i++) {
+                cr.newSubPath();
+                cr.moveTo(cx - 8, cy - 4 + i * 4);
+                cr.lineTo(cx + 8 - (i === 1 ? 3 : 0), cy - 4 + i * 4);
+                cr.stroke();
+            }
+            return;
+        }
+
+        // 云：三个圆弧连成一片，再兜一条底边
+        cr.newSubPath();
+        cr.arc(cx - 4.5, cy + 1.5, 4.2, Math.PI, 0);
+        cr.arc(cx + 1.5, cy - 2, 5.6, Math.PI * 0.85, Math.PI * 0.15);
+        cr.arc(cx + 7, cy + 1.5, 4.2, Math.PI, 0);
+        cr.lineTo(cx - 4.5, cy + 5.7);
+        cr.closePath();
+        cr.fill();
+
+        if (kind === 'partly') {
+            Draw.setColor(cr, this._color('textTertiary'));
+            cr.newSubPath(); cr.arc(cx + 7.5, cy - 6, 3.4, 0, Math.PI * 2); cr.fill();
+        }
+        if (kind === 'rain' || kind === 'drizzle') {
+            Draw.setColor(cr, this._color('textSecondary'));
+            const len = kind === 'drizzle' ? 3 : 4.6;
+            for (let i = 0; i < 3; i++) {
+                const dx = cx - 5 + i * 5;
+                cr.newSubPath(); cr.moveTo(dx, cy + 8); cr.lineTo(dx - 1.2, cy + 8 + len); cr.stroke();
+            }
+        }
+        if (kind === 'snow') {
+            Draw.setColor(cr, this._color('textSecondary'));
+            for (let i = 0; i < 3; i++) {
+                cr.newSubPath(); cr.arc(cx - 5 + i * 5, cy + 9.5, 1.1, 0, Math.PI * 2); cr.fill();
+            }
+        }
+        if (kind === 'storm') {
+            Draw.setColor(cr, this._color('accent'));
+            cr.newSubPath();
+            cr.moveTo(cx + 1, cy + 6.5); cr.lineTo(cx - 2, cy + 12.5);
+            cr.lineTo(cx + 0.6, cy + 12.5); cr.lineTo(cx - 1.4, cy + 17);
+            cr.lineTo(cx + 4, cy + 10.6); cr.lineTo(cx + 1.4, cy + 10.6);
+            cr.closePath();
+            cr.fill();
+        }
+    }
+
+    // ---------------------------------------------------------------- 任务（下载 / 容器 / systemd）
+
+    _paintTasks(cr, w, h) {
+        const t = this._tasks;
+        const top = HEADER_H + 8;
+        if (!t) {
+            this._text(cr, _('采样中…'), PAD, top, F.body, this._color('textTertiary'));
+            return;
+        }
+        const innerW = w - PAD * 2;
+        let y = top;
+
+        // ---- 下载
+        this._text(cr, _('下载'), PAD, y, F.small, this._color('textTertiary'));
+        const d = t.downloads;
+        y += 18;
+        if (d) {
+            const right = [d.speedText, d.source ? d.source : null].filter(Boolean).join(' · ');
+            const rm = this._measure(cr, right, F.small);
+            this._text(cr, right, w - PAD - rm.w, y - 18, F.small, this._color('textTertiary'));
+            const rows = (d.active || []).slice(0, 3);
+            if (!rows.length) {
+                this._text(cr, _('没有进行中的任务'), PAD, y, F.body, this._color('textTertiary'));
+                y += 22;
+            } else {
+                for (const row of rows) {
+                    this._text(cr, row.name || '', PAD, y, F.body, this._color('textPrimary'), { width: innerW - 96 });
+                    const pct = Number.isFinite(row.percent) ? Math.round(row.percent) + '%' : '—';
+                    const pm = this._measure(cr, pct, F.body);
+                    this._text(cr, pct, w - PAD - pm.w, y, F.body, this._color('textSecondary'));
+                    y += 15;
+                    const bw = innerW;
+                    Draw.setColor(cr, this._color('track'));
+                    Draw.roundedRectPath(cr, PAD, y, bw, 4, 2); cr.fill();
+                    if (Number.isFinite(row.percent)) {
+                        Draw.setColor(cr, this._color('accent'));
+                        Draw.roundedRectPath(cr, PAD, y, Math.max(4, bw * Math.max(0, Math.min(1, row.percent / 100))), 4, 2);
+                        cr.fill();
+                    }
+                    y += 11;
+                    if (row.meta) { this._text(cr, row.meta, PAD, y, F.small, this._color('textTertiary')); y += 15; }
+                }
+            }
+        } else {
+            this._text(cr, t.note || _('未配置下载器'), PAD, y - 2, F.body, this._color('textTertiary'));
+            y += 22;
+        }
+
+        // ---- 容器
+        y += 4;
+        this._text(cr, _('容器'), PAD, y, F.small, this._color('textTertiary'));
+        const c = t.containers;
+        if (c) {
+            const text = _('%s 运行 / %s 总共', c.running, c.total);
+            const names = (c.names || []).join(' · ');
+            const tm = this._measure(cr, text, F.body);
+            this._text(cr, text, w - PAD - tm.w, y - 2, F.body, this._color('textPrimary'));
+            y += 20;
+            if (names) { this._text(cr, names, PAD, y, F.small, this._color('textTertiary'), { width: innerW }); y += 16; }
+        } else {
+            this._text(cr, _('未检测到容器运行时'), PAD, y + 2, F.body, this._color('textTertiary'));
+            y += 24;
+        }
+
+        // ---- systemd 用户单元
+        y += 4;
+        this._text(cr, _('失败的单元'), PAD, y, F.small, this._color('textTertiary'));
+        const failed = t.failed;
+        if (failed === null || failed === undefined) {
+            this._text(cr, _('不可用'), w - PAD - this._measure(cr, _('不可用'), F.body).w, y - 2, F.body, this._color('textTertiary'));
+        } else if (!failed.length) {
+            const ok = _('没有失败的单元');
+            this._text(cr, ok, w - PAD - this._measure(cr, ok, F.body).w, y - 2, F.body, this._color('textSecondary'));
+        } else {
+            const head = _('%s 个', failed.length);
+            this._text(cr, head, w - PAD - this._measure(cr, head, F.body).w, y - 2, F.body, this._color('danger'));
+            y += 20;
+            this._text(cr, failed.slice(0, 3).map(u => u.unit || u).join(' · '), PAD, y, F.small, this._color('textTertiary'), { width: innerW });
+        }
+    }
+
     _metricBadge(cr, letter, x, y, color) {
         Draw.setColor(cr, color);
         cr.setLineWidth(1.4);
@@ -682,6 +1291,7 @@ var Panel = class Panel {
         for (const hot of this._hots) {
             if (lx >= hot.x && lx <= hot.x + hot.w && ly >= hot.y && ly <= hot.y + hot.h) {
                 if (hot.action.indexOf('page:') === 0) this.setPage(hot.action.slice(5), true);
+                else if (hot.action === 'monitor:toggleDetail') { this._monitorDetail = !this._monitorDetail; this.actor.queue_repaint(); }
                 else this._emit(hot.action);
                 return true;
             }
@@ -708,6 +1318,58 @@ function easeOutCubic(t) {
     return 1 - Math.pow(1 - x, 3);
 }
 
+// 监控详情页的字节数：1.0 GB 这种写法，未知就是 —（不写 0 B 冒充「空盘」）
+function fmtBytes(v) {
+    // null / undefined / 空串 → —；0 是「真的是 0 字节」，不是未知
+    if (v === null || v === undefined || v === '') return '—';
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return '—';
+    if (n === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    let i = 0;
+    let x = n;
+    while (x >= 1024 && i < units.length - 1) { x /= 1024; i++; }
+    return (i === 0 ? String(Math.round(x)) : x.toFixed(x >= 100 ? 0 : 1)) + ' ' + units[i];
+}
+
+// 链路速率：Linux 报的是 Mb/s；1000 Mb/s 写成 1 Gb/s 更像人话
+function fmtLink(mbps) {
+    const n = Number(mbps);
+    if (!Number.isFinite(n) || n <= 0) return '—';
+    if (n >= 1000) return (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + ' Gb/s';
+    return Math.round(n) + ' Mb/s';
+}
+
+// 番茄钟阶段名：work / short / long / idle
+function phaseLabel(phase) {
+    if (phase === 'work') return _('专注');
+    if (phase === 'short') return _('短休息');
+    if (phase === 'long') return _('长休息');
+    return _('未开始');
+}
+
+function isBreakPhase(phase) {
+    return phase === 'short' || phase === 'long';
+}
+
+// 趋势页的数字：token 与积分共用一套「k / M / B」缩写（与 data.js 的 fmtTokens 同一档位，
+// 只是这里还要处理积分的小数值）。面板不 import data.js —— 它只管画，取数的事留在上层。
+function fmtCount(v) {
+    const n = Math.abs(Number(v) || 0);
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+    if (n >= 10) return String(Math.round(n));
+    if (n > 0) return n.toFixed(1);
+    return '0';
+}
+
+// 趋势页的 x 轴日期：只给首尾两格，M/D 这种写法在中日英里都读得懂，不用翻译
+function fmtDay(ms) {
+    const d = new Date(ms);
+    return (d.getMonth() + 1) + '/' + d.getDate();
+}
+
 function fmtTime(us) {
     if (!us || !Number.isFinite(us)) return '0:00';
     const total = Math.floor(us / 1e6);
@@ -715,4 +1377,4 @@ function fmtTime(us) {
     return m + ':' + ('0' + s).slice(-2);
 }
 
-if (typeof module !== 'undefined') module.exports = { Panel, PAGES, fmtTime };
+if (typeof module !== 'undefined') module.exports = { Panel, PAGES, PAGE_DEFS, fmtTime, fmtCount, fmtDay, fmtBytes, fmtLink, phaseLabel };

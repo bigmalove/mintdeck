@@ -64,6 +64,20 @@ function startOfDay(ms) {
   return d.getTime();
 }
 
+// 按「自然日」平移：走 Date 的 setDate，不是加 86400000 —— 跨夏令时那天不会偏一小时。
+function shiftDays(dayStart, delta) {
+  var d = new Date(dayStart);
+  d.setDate(d.getDate() + delta);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function clampDays(days) {
+  var n = Math.floor(Number(days));
+  if (!Number.isFinite(n) || n < 1) return 7;
+  return Math.min(366, n);
+}
+
 // ---- 解析 ------------------------------------------------------------------
 
 // parseSession(text) -> { entries: [{ seq, ts, provider, model, input, output, cacheRead, cacheWrite, total }] }
@@ -192,11 +206,46 @@ function summarize(parsed, now) {
   };
 }
 
+// ---- 逐日桶（趋势页用）-----------------------------------------------------
+
+// daily(parsed, now, days) -> { tokens: [..days] }
+//   index 0 是最早一天，index days-1 是今天。DSH 没有费用字段（credit 是 WorkBuddy 的），只出 token。
+function daily(parsed, now, days) {
+  var n = clampDays(days);
+  var nowMs = toMs(now);
+  if (nowMs === null) nowMs = Date.now();
+  var todayStart = startOfDay(nowMs);
+  var firstStart = shiftDays(todayStart, -(n - 1));
+  var tokens = [];
+  for (var i = 0; i < n; i++) tokens.push(0);
+
+  var sessions = Array.isArray(parsed) ? parsed : [parsed];
+  for (var s = 0; s < sessions.length; s++) {
+    var session = sessions[s];
+    if (!isObject(session)) continue;
+    var list = Array.isArray(session.entries) ? session.entries : [];
+    for (var e = 0; e < list.length; e++) {
+      var entry = list[e];
+      if (!isObject(entry)) continue;
+      var ts = toMs(entry.ts);
+      if (ts === null || ts > nowMs) continue;
+      var total = count(entry.total);
+      if (total <= 0) total = count(entry.input) + count(entry.output) + count(entry.cacheRead) + count(entry.cacheWrite);
+      if (total <= 0) continue;
+      // DST 那天两个 startOfDay 差 23h 或 25h，取整除法才回到整数天
+      var k = Math.round((startOfDay(ts) - firstStart) / DAY_MS);
+      if (k >= 0 && k < n) tokens[k] += total;
+    }
+  }
+  return { tokens: tokens };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     WEEK_DAYS: WEEK_DAYS,
     parseSession: parseSession,
     summarize: summarize,
+    daily: daily,
     toMs: toMs
   };
 }

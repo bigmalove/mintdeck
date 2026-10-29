@@ -33,6 +33,9 @@ const CACHE_VERSION = 1;
 
 const DSH_MAX_FILES = 400;
 
+// 趋势页的窗口：含今天在内最近 14 个自然日。providers 的 daily() 用同一个口径切桶。
+const TREND_DAYS = 14;
+
 const _files = { claude: {}, dsh: {} };   // path -> {mtime, parsed}
 let _diskLoaded = false;
 let _dirty = false;
@@ -209,7 +212,14 @@ function collectClaudeSync(now) {
             if (p) parsed.push(p);
         } catch (e) { /* 单文件坏了不影响整列 */ }
     }
-    return { summary: Claude.summarize(parsed, now), count: files.length, newest: newestMtime(files) };
+    // daily 是趋势页要的逐日桶（14 天），与 summary 同一套归日规则，在这里一起算掉：
+    // parsed 已经在手里，再开一次扫描纯属浪费。
+    return {
+        summary: Claude.summarize(parsed, now),
+        daily: Claude.daily(parsed, now, TREND_DAYS),
+        count: files.length,
+        newest: newestMtime(files)
+    };
 }
 
 // 刷新代号：每调一次 refresh 就 +1，旧的异步扫描看到代号变了就自己收手。
@@ -217,7 +227,7 @@ function collectClaudeSync(now) {
 let _scanToken = 0;
 
 // DSH 文件多：zstd 一个个异步解压（同一时刻只跑一个，别几十个进程一起起），
-// 缓存命中的文件在同一个 tick 里直接跳过。onDone(summary, meta)
+// 缓存命中的文件在同一个 tick 里直接跳过。onDone(summary, meta, daily)
 function collectDshAsync(now, onDone, token) {
     loadDiskCache();
     const all = listFiles(DSH_DIR, '.zstd', []);
@@ -231,8 +241,9 @@ function collectDshAsync(now, onDone, token) {
     const finish = () => {
         if (stale()) return;
         const summary = Dsh.summarize(parsed, now);
+        const daily = Dsh.daily(parsed, now, TREND_DAYS);
         saveDiskCache();
-        onDone(summary, { parsed: files.length, total: all.length, newest: newestMtime(files) });
+        onDone(summary, { parsed: files.length, total: all.length, newest: newestMtime(files) }, daily);
     };
 
     const step = () => {
@@ -274,6 +285,7 @@ function workbuddyColumn(applet, s) {
         quotas: [{
             title: _('上下文'),
             percent: pct,
+            context: true,          // 上下文占用不是「配额」，不参与预警（见 lib/core/alerts.js）
             valueText: pct === null ? '—' : Math.round(pct) + '%',
             resetText: s.latest ? _('最近：%s', agoText(s.latest.upd) || _('无')) : null
         }],
@@ -356,6 +368,49 @@ function dshColumn(applet, s, meta) {
     };
 }
 
+// ---------------------------------------------------------------- 趋势
+
+// 逐日序列的容器：一次 refresh 建一次，各源（同步的 Claude、异步的 DSH / WorkBuddy）各自往里塞自己那条。
+// 窗口起点由 trendWindow() 现算，providers 的 daily() 用同一个「含今天 14 天」口径，下标才对得上。
+let _trend = null;
+
+function trendWindow(now) {
+    const today = new Date(now instanceof Date ? now.getTime() : (Number(now) || Date.now()));
+    today.setHours(0, 0, 0, 0);
+    const days = [];
+    for (let i = TREND_DAYS - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        d.setHours(0, 0, 0, 0);
+        days.push(d.getTime());
+    }
+    return days;
+}
+
+function resetTrend(now) {
+    _trend = { days: trendWindow(now), series: [] };
+    return _trend;
+}
+
+function putSeries(series) {
+    if (!_trend || !series) return;
+    for (let i = 0; i < _trend.series.length; i++) {
+        if (_trend.series[i].key === series.key) { _trend.series[i] = series; return; }
+    }
+    _trend.series.push(series);
+}
+
+function dropSeries(key) {
+    if (!_trend) return;
+    for (let i = 0; i < _trend.series.length; i++) {
+        if (_trend.series[i].key === key) { _trend.series.splice(i, 1); return; }
+    }
+}
+
+function paintTrend(applet) {
+    try { applet._panel.setTrend(_trend); } catch (e) { global.logError(e); }
+}
+
 // ---------------------------------------------------------------- 入口
 
 function render(applet, columns) {
@@ -370,6 +425,10 @@ function render(applet, columns) {
         quotas.push({ percent: pct, color: c.color });
     }
     applet._island.setQuotas(quotas, applet.v_showQuotaRing !== false);
+    // 配额预警由 applet 判定（它才持有设置项与通知通道）；这里只在列更新后敲一下。
+    if (typeof applet._onColumns === 'function') {
+        try { applet._onColumns(columns); } catch (e) { global.logError(e); }
+    }
 }
 
 // 列按 name 就地替换：异步源回来时只换自己那一列，不重排、不闪整块
@@ -393,11 +452,18 @@ function refresh(applet) {
     const cols = [];
     const live = () => token === _scanToken;
     const paint = () => { if (live()) render(applet, cols); };
+    resetTrend(now);
 
     if (applet.v_sourceClaude !== false) {
         try {
             const r = collectClaudeSync(now);
             cols.push(claudeColumn(applet, r.summary, r));
+            putSeries({
+                key: 'claude', name: 'Claude', unit: 'tokens', order: 0,
+                color: appColor(applet, 'claude'),
+                values: (r.daily && r.daily.tokens) || [],
+                usd: r.daily ? r.daily.usd : null
+            });
         } catch (e) {
             cols.push({ name: 'Claude', color: appColor(applet, 'claude'), statusText: _('读取失败'), statusCode: 'error' });
         }
@@ -411,18 +477,32 @@ function refresh(applet) {
             cols.push(cached
                 ? workbuddyColumn(applet, WorkBuddy.summarize(cached, now))
                 : { name: 'WorkBuddy', color: appColor(applet, 'other'), statusText: _('读取中…'), statusCode: 'loading' });
+            if (cached) {
+                putSeries({
+                    key: 'workbuddy', name: 'WorkBuddy', unit: 'credits', order: 2,
+                    color: appColor(applet, 'other'),
+                    values: WorkBuddy.daily(cached, now, TREND_DAYS).credits
+                });
+            }
         } catch (e) {
             cols.push({ name: 'WorkBuddy', color: appColor(applet, 'other'), statusText: _('读取失败'), statusCode: 'error' });
         }
     }
+    paintTrend(applet);
     paint();
 
     if (applet.v_sourceWorkbuddy !== false && !workbuddyFresh()) {
         fetchWorkbuddy((raw) => {
             if (!live()) return;
-            if (!raw) { dropCol(cols, 'WorkBuddy'); paint(); return; }   // 读不到就不占位置
+            if (!raw) { dropCol(cols, 'WorkBuddy'); dropSeries('workbuddy'); paintTrend(applet); paint(); return; }   // 读不到就不占位置
             try {
                 upsert(cols, workbuddyColumn(applet, WorkBuddy.summarize(raw, now)));
+                putSeries({
+                    key: 'workbuddy', name: 'WorkBuddy', unit: 'credits', order: 2,
+                    color: appColor(applet, 'other'),
+                    values: WorkBuddy.daily(raw, now, TREND_DAYS).credits
+                });
+                paintTrend(applet);
             } catch (e) {
                 upsert(cols, { name: 'WorkBuddy', color: appColor(applet, 'other'), statusText: _('读取失败'), statusCode: 'error' });
             }
@@ -431,10 +511,16 @@ function refresh(applet) {
     }
 
     if (applet.v_sourceDsh !== false) {
-        collectDshAsync(now, (summary, meta) => {
+        collectDshAsync(now, (summary, meta, daily) => {
             if (!live()) return;
             try {
                 upsert(cols, dshColumn(applet, summary, meta));
+                putSeries({
+                    key: 'dsh', name: 'DeepSeek Harness', unit: 'tokens', order: 1,
+                    color: appColor(applet, 'dsh'),
+                    values: (daily && daily.tokens) || []
+                });
+                paintTrend(applet);
             } catch (e) {
                 upsert(cols, { name: 'DeepSeek Harness', statusText: _('读取失败'), statusCode: 'error' });
             }
@@ -459,6 +545,9 @@ if (typeof module !== 'undefined') {
         fmtTokens: fmtTokens,
         fmtUsd: fmtUsd,
         listFiles: listFiles,
+        TREND_DAYS: TREND_DAYS,
+        trendWindow: trendWindow,
+        _trend: function () { return _trend; },
         _resetCache: function () {
             _files.claude = {}; _files.dsh = {}; _diskLoaded = false; _dirty = true;
             _wbCache = null; _wbWaiters = null;

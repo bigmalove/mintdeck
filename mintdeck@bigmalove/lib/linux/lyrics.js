@@ -4,7 +4,7 @@
 // Soup 版本必须在 import 之前钉死：cjs 里不写这句会拿到 2.4 的 API，async 方法全变。
 'use strict';
 
-if (typeof imports !== 'undefined' && imports.gi) imports.gi.versions.Soup = '3.0';
+if (typeof imports !== 'undefined' && imports.gi && imports.gi.versions) imports.gi.versions.Soup = '3.0';
 
 const LRCLIB_EXACT = 'https://lrclib.net/api/get';
 const LRCLIB_SEARCH = 'https://lrclib.net/api/search';

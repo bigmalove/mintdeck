@@ -13,134 +13,456 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: mintdeck@bigmalove/applet.js:397
+#: mintdeck@bigmalove/applet.js:61
+msgid "晴"
+msgstr "Clear"
+
+#: mintdeck@bigmalove/applet.js:62
+msgid "多云"
+msgstr "Partly cloudy"
+
+#: mintdeck@bigmalove/applet.js:63
+msgid "阴"
+msgstr "Overcast"
+
+#: mintdeck@bigmalove/applet.js:64
+msgid "雾"
+msgstr "Fog"
+
+#: mintdeck@bigmalove/applet.js:65
+msgid "细雨"
+msgstr "Drizzle"
+
+#: mintdeck@bigmalove/applet.js:66
+msgid "雨"
+msgstr "Rain"
+
+#: mintdeck@bigmalove/applet.js:67
+msgid "雪"
+msgstr "Snow"
+
+#: mintdeck@bigmalove/applet.js:68
+msgid "雷雨"
+msgstr "Thunderstorm"
+
+#: mintdeck@bigmalove/applet.js:421 mintdeck@bigmalove/applet.js:423
+msgid "番茄钟"
+msgstr "Pomodoro"
+
+#: mintdeck@bigmalove/applet.js:421
+msgid "专注结束，休息 %s 分钟"
+msgstr "Focus done — %s-minute break"
+
+#: mintdeck@bigmalove/applet.js:423
+msgid "休息结束，回来继续专注"
+msgstr "Break over — back to focus"
+
+#: mintdeck@bigmalove/applet.js:579 settings-schema.json
+msgid "专注计时"
+msgstr "Focus timer"
+
+#: mintdeck@bigmalove/applet.js:583
 msgid "设置…"
 msgstr "Settings…"
 
-#: mintdeck@bigmalove/applet.js:398
+#: mintdeck@bigmalove/applet.js:584
 msgid "重新读取数据"
 msgstr "Reload data"
 
-#: mintdeck@bigmalove/applet.js:400
+#: mintdeck@bigmalove/applet.js:586
 msgid "关于 MintDeck"
 msgstr "About MintDeck"
 
-#: mintdeck@bigmalove/applet.js:401
+#: mintdeck@bigmalove/applet.js:587
 msgid "基于 BrimDeck（Apache-2.0）的 Cinnamon 复刻。"
 msgstr "A Cinnamon port of BrimDeck (Apache-2.0)."
 
-#: mintdeck@bigmalove/applet.js:441
+#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+msgid "周日"
+msgstr "Sun"
+
+#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+msgid "周一"
+msgstr "Mon"
+
+#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+msgid "周二"
+msgstr "Tue"
+
+#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+msgid "周三"
+msgstr "Wed"
+
+#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+msgid "周四"
+msgstr "Thu"
+
+#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+msgid "周五"
+msgstr "Fri"
+
+#: mintdeck@bigmalove/applet.js:703 mintdeck@bigmalove/applet.js:784
+msgid "周六"
+msgstr "Sat"
+
+#: mintdeck@bigmalove/applet.js:737
+msgid "全天"
+msgstr "All day"
+
+#: mintdeck@bigmalove/applet.js:738 mintdeck@bigmalove/applet.js:748
+msgid "（无标题）"
+msgstr "(untitled)"
+
+#: mintdeck@bigmalove/applet.js:747
+msgid "明天"
+msgstr "Tomorrow"
+
+#: mintdeck@bigmalove/applet.js:771
+msgid "%s月%s日 · %s"
+msgstr "%s/%s · %s"
+
+#: mintdeck@bigmalove/applet.js:779
+msgid "设置里填城市后显示天气"
+msgstr "Set a city in the settings to see the weather"
+
+#: mintdeck@bigmalove/applet.js:796
+msgid "任务模块不可用"
+msgstr "Task module unavailable"
+
+#: mintdeck@bigmalove/applet.js:807
+msgid "（未命名）"
+msgstr "(unnamed)"
+
+#: mintdeck@bigmalove/applet.js:809
+msgid "剩余 %s"
+msgstr "%s left"
+
+#: mintdeck@bigmalove/applet.js:823 mintdeck@bigmalove/lib/deck/panel.js:1228
+msgid "未配置下载器"
+msgstr "No downloader configured"
+
+#: mintdeck@bigmalove/applet.js:843
 msgid "读取失败：%s"
 msgstr "Read failed: %s"
 
-#: mintdeck@bigmalove/lib/deck/data.js:271
+#: mintdeck@bigmalove/applet.js:868
+msgid "配额预警"
+msgstr "Quota alert"
+
+#: mintdeck@bigmalove/applet.js:870
+msgid "%s 已达 %s，额度即将用完"
+msgstr "%s reached %s — quota almost used up"
+
+#: mintdeck@bigmalove/applet.js:871
+msgid "%s 已用 %s"
+msgstr "%s at %s"
+
+#: mintdeck@bigmalove/lib/deck/data.js:325
 msgid "%s 天前"
 msgid_plural "%s 天前"
 msgstr[0] "%s day ago"
 msgstr[1] "%s days ago"
 
-#: mintdeck@bigmalove/lib/deck/data.js:272
+#: mintdeck@bigmalove/lib/deck/data.js:326
 msgid "%s 个月前"
 msgid_plural "%s 个月前"
 msgstr[0] "%s month ago"
 msgstr[1] "%s months ago"
 
-#: mintdeck@bigmalove/lib/deck/data.js:233
+#: mintdeck@bigmalove/lib/deck/data.js:286
 msgid "上下文"
 msgstr "Context"
 
-#: mintdeck@bigmalove/lib/deck/data.js:236
+#: mintdeck@bigmalove/lib/deck/data.js:290
 msgid "最近：%s"
 msgstr "Updated %s"
 
-#: mintdeck@bigmalove/lib/deck/data.js:236 mintdeck@bigmalove/lib/deck/data.js:299
+#: mintdeck@bigmalove/lib/deck/data.js:290
+#: mintdeck@bigmalove/lib/deck/data.js:353
 msgid "无"
 msgstr "none"
 
-#: mintdeck@bigmalove/lib/deck/data.js:239 mintdeck@bigmalove/lib/deck/data.js:240
+#: mintdeck@bigmalove/lib/deck/data.js:293
+#: mintdeck@bigmalove/lib/deck/data.js:294
 msgid "%s 积分"
 msgstr "%s credits"
 
-#: mintdeck@bigmalove/lib/deck/data.js:243
+#: mintdeck@bigmalove/lib/deck/data.js:297
 msgid "%s 个会话 · 累计 %s 积分"
 msgstr "%s sessions · %s credits total"
 
-#: mintdeck@bigmalove/lib/deck/data.js:269
+#: mintdeck@bigmalove/lib/deck/data.js:323
+#: mintdeck@bigmalove/lib/deck/panel.js:1088
 msgid "今天"
 msgstr "today"
 
-#: mintdeck@bigmalove/lib/deck/data.js:270
+#: mintdeck@bigmalove/lib/deck/data.js:324
 msgid "昨天"
 msgstr "yesterday"
 
-#: mintdeck@bigmalove/lib/deck/data.js:291
+#: mintdeck@bigmalove/lib/deck/data.js:345
 msgid "5 小时"
 msgstr "5 hours"
 
-#: mintdeck@bigmalove/lib/deck/data.js:292
+#: mintdeck@bigmalove/lib/deck/data.js:346
 msgid "每周"
 msgstr "Weekly"
 
-#: mintdeck@bigmalove/lib/deck/data.js:294
+#: mintdeck@bigmalove/lib/deck/data.js:348
 msgid "未登录 · 仅本机用量"
 msgstr "Not signed in · local usage only"
 
-#: mintdeck@bigmalove/lib/deck/data.js:299
+#: mintdeck@bigmalove/lib/deck/data.js:353
 msgid "最近记录 %s"
 msgstr "Last seen %s"
 
-#: mintdeck@bigmalove/lib/deck/data.js:299 mintdeck@bigmalove/lib/deck/data.js:314
+#: mintdeck@bigmalove/lib/deck/data.js:353
+#: mintdeck@bigmalove/lib/deck/data.js:367
 msgid "本机会话"
 msgstr "Local sessions"
 
-#: mintdeck@bigmalove/lib/deck/data.js:314
+#: mintdeck@bigmalove/lib/deck/data.js:367
 msgid "%s/%s 个会话"
 msgstr "%s/%s sessions"
 
-#: mintdeck@bigmalove/lib/deck/data.js:344 mintdeck@bigmalove/lib/deck/data.js:355
-#: mintdeck@bigmalove/lib/deck/data.js:366
+#: mintdeck@bigmalove/lib/deck/data.js:468
+#: mintdeck@bigmalove/lib/deck/data.js:488
+#: mintdeck@bigmalove/lib/deck/data.js:507
 msgid "读取失败"
 msgstr "Read failed"
 
-#: mintdeck@bigmalove/lib/deck/data.js:348
+#: mintdeck@bigmalove/lib/deck/data.js:472
+#: mintdeck@bigmalove/lib/deck/data.js:479
 msgid "读取中…"
 msgstr "Reading…"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:25 settings-schema.json
-msgid "AI 用量"
-msgstr "AI Usage"
-
-#: mintdeck@bigmalove/lib/deck/panel.js:26 settings-schema.json
-msgid "音乐"
-msgstr "Music"
-
-#: mintdeck@bigmalove/lib/deck/panel.js:27 settings-schema.json
-msgid "系统监控"
-msgstr "System Monitor"
-
-#: mintdeck@bigmalove/lib/deck/panel.js:381
+#: mintdeck@bigmalove/lib/deck/panel.js:462
 msgid "没有可显示的来源"
 msgstr "No sources to show"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:450
+#: mintdeck@bigmalove/lib/deck/panel.js:531
 msgid "used"
 msgstr "used"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:471
+#: mintdeck@bigmalove/lib/deck/panel.js:552
 msgid "今日"
 msgstr "Today"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:472
+#: mintdeck@bigmalove/lib/deck/panel.js:553
 msgid "七日"
 msgstr "7 days"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:500
+#: mintdeck@bigmalove/lib/deck/panel.js:581
 msgid "未检测到播放器"
 msgstr "No media player detected"
 
-#: mintdeck@bigmalove/lib/deck/panel.js:589
+#: mintdeck@bigmalove/lib/deck/panel.js:677
+msgid "概览"
+msgstr "Overview"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:677
+msgid "详情"
+msgstr "Details"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:688
+#: mintdeck@bigmalove/lib/deck/panel.js:845
 msgid "采样未接入"
 msgstr "Sampling unavailable"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:770
+msgid "暂无用量数据"
+msgstr "No usage data yet"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:795
+msgid "积分 / 天"
+msgstr "Credits / day"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:795
+msgid "Token / 天"
+msgstr "Tokens / day"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:802
+msgid "今日 %s"
+msgstr "Today %s"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:802
+msgid "合计 %s"
+msgstr "Total %s"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:830
+msgid "最近 %s 天"
+msgstr "Last %s days"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:856
+msgid "磁盘"
+msgstr "Disk"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:881
+#: mintdeck@bigmalove/lib/deck/panel.js:1253
+msgid "不可用"
+msgstr "Unavailable"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:888
+msgid "温度"
+msgstr "Temp"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:889
+msgid "风扇"
+msgstr "Fan"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:890
+msgid "频率"
+msgstr "Freq"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:947
+msgid "暂停"
+msgstr "Pause"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:947
+msgid "开始"
+msgstr "Start"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:947
+msgid "继续"
+msgstr "Resume"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:953
+msgid "跳过"
+msgstr "Skip"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:955
+msgid "重置"
+msgstr "Reset"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:978
+#: mintdeck@bigmalove/lib/deck/panel.js:1029
+#: mintdeck@bigmalove/lib/deck/panel.js:1190
+msgid "采样中…"
+msgstr "Sampling…"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:985
+msgid "接口"
+msgstr "Interface"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:986
+msgid "已连接"
+msgstr "connected"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:986
+msgid "未连接"
+msgstr "disconnected"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:995
+msgid "延迟"
+msgstr "Latency"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:998
+msgid "丢包 %s"
+msgstr "%s loss"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1006
+msgid "公网 IP"
+msgstr "Public IP"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1013
+msgid "速率"
+msgstr "Throughput"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1019
+msgid "网络探测不可用"
+msgstr "Network probe unavailable"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1019
+msgid "每 %s 秒采样"
+msgstr "sampled every %s s"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1052
+msgid "一"
+msgstr "M"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1052
+msgid "二"
+msgstr "T"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1052
+msgid "三"
+msgstr "W"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1052
+msgid "四"
+msgstr "T"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1052
+msgid "五"
+msgstr "F"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1052
+msgid "六"
+msgstr "S"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1052
+msgid "日"
+msgstr "S"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1092
+msgid "没有日程"
+msgstr "No events"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1103
+msgid "接下来"
+msgstr "Upcoming"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1107
+msgid "未来一周没有日程"
+msgstr "Nothing in the next 7 days"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1197
+msgid "下载"
+msgstr "Downloads"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1206
+msgid "没有进行中的任务"
+msgstr "No active downloads"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1234
+msgid "容器"
+msgstr "Containers"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1237
+msgid "%s 运行 / %s 总共"
+msgstr "%s running / %s total"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1244
+msgid "未检测到容器运行时"
+msgstr "No container runtime detected"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1250
+msgid "失败的单元"
+msgstr "Failed units"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1255
+msgid "没有失败的单元"
+msgstr "No failed units"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1258
+msgid "%s 个"
+msgstr "%s"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1345
+msgid "专注"
+msgstr "Focus"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1346 settings-schema.json
+msgid "短休息"
+msgstr "Short break"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1347 settings-schema.json
+msgid "长休息"
+msgstr "Long break"
+
+#: mintdeck@bigmalove/lib/deck/panel.js:1348
+msgid "未开始"
+msgstr "Not started"
 
 #: settings-schema.json
 msgid "外观"
@@ -185,6 +507,14 @@ msgstr "Data sources"
 #: settings-schema.json
 msgid "提醒"
 msgstr "Alerts"
+
+#: settings-schema.json
+msgid "日程与天气"
+msgstr "Agenda & weather"
+
+#: settings-schema.json
+msgid "下载与容器"
+msgstr "Downloads & containers"
 
 #: settings-schema.json
 msgid "交互"
@@ -257,8 +587,11 @@ msgstr "Cyberpunk: Edgerunners"
 #: settings-schema.json
 msgid "界面语言（悬浮岛与面板；设置窗口跟随系统语言）"
 msgstr ""
-"Language of the island and panel (this settings window follows the system "
-"language)"
+"UI language (island and panel; the settings window follows the system "
+"locale)UI language (island and panel; the settings window follows the system "
+"locale)UI language (island and panel; the settings window follows the system "
+"locale)Language of the island and panel (this settings window follows the "
+"system language)"
 
 #: settings-schema.json
 msgid "自动（跟随系统）"
@@ -385,8 +718,92 @@ msgid "默认页"
 msgstr "Default page"
 
 #: settings-schema.json
+msgid "AI 用量"
+msgstr "AI Usage"
+
+#: settings-schema.json
+msgid "用量趋势"
+msgstr "Usage trend"
+
+#: settings-schema.json
+msgid "日程"
+msgstr "Agenda"
+
+#: settings-schema.json
+msgid "音乐"
+msgstr "Music"
+
+#: settings-schema.json
+msgid "系统监控"
+msgstr "System Monitor"
+
+#: settings-schema.json
+msgid "网络"
+msgstr "Network"
+
+#: settings-schema.json
+msgid "任务"
+msgstr "Tasks"
+
+#: settings-schema.json
 msgid "展开或收起面板"
 msgstr "Toggle the panel"
+
+#: settings-schema.json
+msgid "分钟"
+msgstr "min"
+
+#: settings-schema.json
+msgid "专注时长"
+msgstr "Focus length"
+
+#: settings-schema.json
+msgid "轮"
+msgstr "rounds"
+
+#: settings-schema.json
+msgid "每几轮一次长休息"
+msgstr "Long break every N rounds"
+
+#: settings-schema.json
+msgid "阶段结束自动进入下一段"
+msgstr "Start the next phase automatically"
+
+#: settings-schema.json
+msgid "专注时在悬浮岛上显示倒计时"
+msgstr "Show the countdown on the island while focusing"
+
+#: settings-schema.json
+msgid "专注与休息结束时通知"
+msgstr "Notify when focus or break ends"
+
+#: settings-schema.json
+msgid "天气城市（留空则不请求；中文名可直接填，如 杭州）"
+msgstr "City for weather (empty = off; Chinese names work, e.g. 杭州)"
+
+#: settings-schema.json
+msgid "aria2 JSON-RPC 地址（留空则关闭）"
+msgstr "aria2 JSON-RPC URL (empty = off)"
+
+#: settings-schema.json
+msgid "aria2 RPC secret（没有就留空）"
+msgstr "aria2 RPC secret (empty if none)"
+
+#: settings-schema.json
+msgid "qBittorrent Web UI 地址（留空则关闭）"
+msgstr "qBittorrent Web UI URL (empty = off)"
+
+#: settings-schema.json
+msgid "qBittorrent 用户名"
+msgstr "qBittorrent username"
+
+#: settings-schema.json
+msgid "qBittorrent 密码"
+msgstr "qBittorrent password"
+
+#: settings-schema.json
+msgid "显示容器与 systemd 失败单元"
+msgstr "Show containers and failed systemd units"
 
 #: settings-schema.json
 msgid "显示在"
@@ -408,5 +825,5 @@ msgstr "Show a panel icon (right-click the island for settings when hidden)"
 msgid "全屏时隐藏（全屏下鼠标唤出将不可用）"
 msgstr "Hide in fullscreen (hover-to-open stops working)"
 
-#~ msgid "最近 %s"
-#~ msgstr "Latest %s"
+#~ msgid "%s / %s"
+#~ msgstr "%s / %s"
