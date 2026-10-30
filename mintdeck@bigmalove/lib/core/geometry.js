@@ -447,6 +447,60 @@ function zone(style, surface, workTop) {
   return rect(left - padX, top, width + padX * 2, bottom + padBelow - top);
 }
 
+// ---------------------------------------------------------------- 指针命中（Cinnamon 移植独有）
+
+// 上游是 WPF，命中直接落在可见形状上；Cinnamon 这边 chrome actor 的矩形 = 表面 + 四周柔影留边
+// （island.js 的 SHADOW_PAD = 16），而刘海顶部两肩是曲线、底部是圆角 —— 这圈「看得见/看不见」
+// 的差集全都会吃鼠标。下面两个函数把这两块从表面矩形里算出来，给 applet.js 判命中用。
+var Hit = {
+  notchShoulder: 16,   // 肩部曲线横向占用（island.js _path 里 s = min(16, w/4)）
+  notchTop: 6,         // 肩部从顶边下沉的透明高度（depth = s*7/16 ≈ 7）
+  notchBottom: 12,     // 底部圆角半径（R = min(12, w/2, h)）
+  lineHalf: 40,        // 指示条太细，只认正中 80px，不然随便扫过就触发
+  wakeWidthFactor: 0.4,   // 唤出带占岛体宽度的比例
+  wakeWidthMin: 64,
+  wakeWidthMax: 130,
+  wakeHeightFactor: 0.6   // 纵向只认岛体上沿这一段
+};
+
+// 真正可见的岛体（不含柔影留边、不含肩角与圆角）。null = 还没有几何。
+function body(style, surface) {
+  var shape = styleOf(style);
+  var s = surface || {};
+  var x = Number.isFinite(s.x) ? s.x : 0;
+  var y = Number.isFinite(s.y) ? s.y : 0;
+  var w = Number.isFinite(s.width) ? s.width : 0;
+  var h = Number.isFinite(s.height) ? s.height : 0;
+  if (!(w > 0) || !(h > 0)) return null;
+  if (shape === Styles.Line) {
+    var half = Math.min(Hit.lineHalf, w / 2);
+    return rect(Math.round(x + w / 2 - half), y, Math.round(half * 2), h);
+  }
+  if (shape === Styles.Capsule) return rect(x, y, w, h);
+  var shoulder = Math.min(Hit.notchShoulder, w / 4);
+  var top = Math.min(Hit.notchTop, h / 3);
+  var bottom = Math.min(Hit.notchBottom, h / 3);
+  return rect(x + shoulder, y + top, w - shoulder * 2, h - top - bottom);
+}
+
+// 唤出带：岛体正中一条窄带，指针停在这里才排展开（applet.js 的 openDelay）。
+// 比 body 窄是刻意的 —— 悬停比点击更容易误触，岛宽 390px 时按比例会算出 150px 以上。
+function wake(style, surface) {
+  var b = body(style, surface);
+  if (!b) return null;
+  var w = Math.min(b.width, Math.max(Hit.wakeWidthMin,
+    Math.min(Hit.wakeWidthMax, Math.round(b.width * Hit.wakeWidthFactor))));
+  var h = Math.max(10, Math.round(b.height * Hit.wakeHeightFactor));
+  return rect(Math.round(b.x + (b.width - w) / 2), b.y, w, Math.min(h, b.height));
+}
+
+// 点是否在矩形内（闭区间；空矩形一律 false）
+function hits(r, x, y) {
+  if (!r || !(r.width > 0) || !(r.height > 0)) return false;
+  return x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
+}
+
+
 // CollapsedGeometry.cs:144-153：展开面板从哪里开始（DIP，相对显示器顶边；work 也是相对显示器），
 // 以及它比页面高多少（headerExtra，加在 header 上方）。
 // 刘海与指示条：贴屏幕边（0）。胶囊还在 hover 桥内：贴工作区顶边，都算「挂着」，headerExtra 为 0。
@@ -506,6 +560,10 @@ if (typeof module !== 'undefined') {
     roundLineThickness: roundLineThickness,
     snapToDevicePixels: snapToDevicePixels,
     hasBridge: hasBridge,
-    zone: zone
+    zone: zone,
+    Hit: Hit,
+    body: body,
+    wake: wake,
+    hits: hits
   };
 }

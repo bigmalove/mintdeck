@@ -429,3 +429,86 @@ test('未知档位回落标准档；presetSettings 返回副本', () => {
   a.notchHeight = 999;
   assert.equal(G.presetSettings('compact').notchHeight, 26, '改返回值不许污染预设表');
 });
+
+// ---------------------------------------------------------------- 指针命中（Cinnamon 移植独有）
+//
+// 期望值手算：body 从表面矩形里扣掉肩部 16、顶 6、底 12（都夹到 h/3）；
+// wake 取 body 宽度 40%，夹到 64–130，取整；高度取 body 高的 60%，最少 10，再夹到 body 高。
+
+test('body：刘海去掉肩角、顶部透明带和底部圆角', () => {
+  // 实测的运行时几何：surface 336x40 @1752,0
+  const b = G.body('notch', { x: 1752, y: 0, width: 336, height: 40 });
+  check(b, { x: 1768, y: 6, width: 304, height: 22 }, 'notch 336x40');
+  // shoulder = min(16, 336/4=84) = 16；top = min(6, 40/3) = 6；bottom = min(12, 40/3) = 12
+
+  const b2 = G.body('notch', { x: 1801, y: 0, width: 238, height: 32 });
+  assert.equal(b2.x, 1817, '238 宽：左边进 16');
+  assert.equal(b2.y, 6, '顶边进 6');
+  assert.equal(b2.width, 206, '238 - 16*2');
+  assert.ok(Math.abs(b2.height - 15.3333) < 0.01, '32 - 6 - 32/3');
+});
+
+test('body：胶囊就是表面本身，指示条只认正中 80px', () => {
+  const c = G.body('capsule', { x: 100, y: 5, width: 196, height: 32 });
+  check(c, { x: 100, y: 5, width: 196, height: 32 }, 'capsule');
+
+  const l = G.body('line', { x: 940, y: 4, width: 56, height: 4 });
+  check(l, { x: 940, y: 4, width: 56, height: 4 }, '指示条短于 80：整条都算');
+
+  const l2 = G.body('line', { x: 900, y: 4, width: 200, height: 6 });
+  check(l2, { x: 960, y: 4, width: 80, height: 6 }, '指示条长于 80：只认正中 80');
+});
+
+test('body：没有几何时返回 null，不抛', () => {
+  assert.equal(G.body('notch', null), null);
+  assert.equal(G.body('notch', { x: 0, y: 0, width: 0, height: 40 }), null);
+  assert.equal(G.body('notch', { x: 0, y: 0, width: 200, height: 0 }), null);
+});
+
+test('wake：正中窄带，宽 40% 夹到 64–130，高 60% 至少 10', () => {
+  // 运行时实测值：surface 336x40 → body 304x22 → wake 122x13 @1859,6
+  const w = G.wake('notch', { x: 1752, y: 0, width: 336, height: 40 });
+  check(w, { x: 1859, y: 6, width: 122, height: 13 }, 'notch 336x40');
+
+  const w2 = G.wake('notch', { x: 1801, y: 0, width: 238, height: 32 });
+  check(w2, { x: 1879, y: 6, width: 82, height: 10 }, 'notch 238x32：0.4*206=82.4→82，高 9.2 抬到 10');
+
+  const w3 = G.wake('notch', { x: 0, y: 0, width: 1600, height: 40 });
+  assert.equal(w3.width, 130, '超宽岛：夹到 130');
+
+  const w4 = G.wake('notch', { x: 0, y: 0, width: 200, height: 40 });
+  assert.equal(w4.width, 67, '0.4 * (200-32) = 67.2 → 67，仍在 64 以上');
+
+  const w5 = G.wake('notch', { x: 0, y: 0, width: 120, height: 40 });
+  assert.equal(w5.width, 64, '0.4 * (120-32) = 35.2 → 抬到 64');
+});
+
+test('wake 永远落在 body 里，body 永远落在表面里', () => {
+  const cases = [
+    ['notch', { x: 0, y: 0, width: 238, height: 32 }],
+    ['notch', { x: 1752, y: 0, width: 336, height: 40 }],
+    ['notch', { x: 900, y: 0, width: 800, height: 64 }],
+    ['capsule', { x: 100, y: 5, width: 196, height: 32 }],
+    ['line', { x: 900, y: 4, width: 56, height: 4 }],
+    ['line', { x: 900, y: 4, width: 200, height: 10 }]
+  ];
+  for (const [style, surface] of cases) {
+    const b = G.body(style, surface);
+    const w = G.wake(style, surface);
+    const where = `${style} ${surface.width}x${surface.height}`;
+    assert.ok(b.x >= surface.x && b.x + b.width <= surface.x + surface.width + 1e-9, `${where}: body 横向越界`);
+    assert.ok(b.y >= surface.y && b.y + b.height <= surface.y + surface.height + 1e-9, `${where}: body 纵向越界`);
+    assert.ok(w.x >= b.x && w.x + w.width <= b.x + b.width + 1e-9, `${where}: wake 横向不在 body 里`);
+    assert.ok(w.y >= b.y && w.y + w.height <= b.y + b.height + 1e-9, `${where}: wake 纵向不在 body 里`);
+  }
+});
+
+test('hits：闭区间；空/缺矩形一律 false', () => {
+  const r = { x: 100, y: 10, width: 50, height: 20 };
+  assert.equal(G.hits(r, 100, 10), true, '左上角算命中');
+  assert.equal(G.hits(r, 150, 30), true, '右下角算命中');
+  assert.equal(G.hits(r, 99.9, 10), false, '差 0.1px 就不算');
+  assert.equal(G.hits(r, 150.1, 30), false);
+  assert.equal(G.hits(null, 0, 0), false, '没几何时永远不命中（宁可不弹）');
+  assert.equal(G.hits({ x: 0, y: 0, width: 0, height: 0 }, 0, 0), false);
+});

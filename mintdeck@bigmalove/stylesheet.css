@@ -78,3 +78,10 @@
     color: #61EBEBF5;
     padding: 10px 4px;
 }
+
+/* 命中框：岛体大小的透明 actor，只收鼠标不画画。
+   全透明也行 —— chrome 的输入区看的是 actor 的 visible/mapped 和矩形，
+   不看它画了什么（layout.js updateRegions 里只判 get_paint_visibility）。 */
+.mintdeck-hitbox {
+    background-color: rgba(0, 0, 0, 0);
+}

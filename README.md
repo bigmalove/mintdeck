@@ -177,7 +177,9 @@ tools/i18n-*.py            # 抽 msgid → pot、pot → i18nData.js + .mo
 ## 已知限制
 
 - **全屏与 hover 互斥**：`visibleInFullscreen: false` 时 actor 会被移出输入区域，全屏应用下鼠标唤不出来。这是上游「全屏免打扰」的同一取舍，暂时没有开关。
-- **输入区域是矩形**：刘海底部的 12px 圆角处仍会吃掉点击（St 的 input region 只支持矩形并集）。
+- **画图和命中是两块 actor**：岛的绘制 actor 带 16px 柔影留边，如果它自己进输入区，岛周围就有一圈「看不见但吃点击」的边（浏览器标签正好压在那儿）。所以绘制 actor 用 `affectsInputRegion: false`，另有一个只有岛体大小的透明命中框（`geometry.body()`）收鼠标 —— 阴影带、肩角、圆角的点击会直接落到下面的窗口。命中框是矩形，圆角那几像素仍算岛内。
+- **悬停要停满延迟**：指针进岛体正中 130px 窄带（`geometry.wake()`）并停满 `openDelay`（默认 2000ms）才展开，中途离开即取消；点一下岛体则立即开合。
+- **改 `lib/` 要重启 Cinnamon**：`org.Cinnamon.ReloadXlet` 只重载 `applet.js`，`imports.lib.*` 有模块缓存；改完 `lib/core`、`lib/deck` 后要 `org.Cinnamon.RestartCinnamon(false)`（会话和窗口都不动）。
 - **指示条**：用主题的 `indicator`/`indicatorProgress` 两色（上游同名字段）。浅色主题下底色 `#AEAEB2` 在浅色桌面上很淡，有播放时那截深色进度段才是它最显眼的部分。
 - **CSD 阴影**：`box-shadow` 由 St 渲染，在极暗壁纸上几乎看不见。
 - **高 DPI**：已按 `St.ThemeContext.scale_factor` 处理（本机 2x 实测），线宽对齐物理像素网格（`1/dpr` 的整数倍），不会出现 1px 描边糊掉。

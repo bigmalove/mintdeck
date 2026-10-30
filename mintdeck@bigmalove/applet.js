@@ -83,7 +83,8 @@ class MintDeckApplet extends Applet.Applet {
         this._closeTimer = 0;
         this._clockTimer = 0;
         this._refreshTimer = 0;
-        this._hoverOpen = false;
+        this._hoverOpen = false;    // 指针在「悬停判定区」内（不是整个 actor 矩形）
+        this._hoverInside = false;  // 上一次判定的结果，用来避免每次 motion 都重排定时器
         this._liveStops = [];
         this._alertState = {};      // 配额预警的边沿状态：{ [来源名]: { level, at } }
         this._pomodoro = null;      // 番茄钟状态机（构造末尾 create）
@@ -169,6 +170,13 @@ class MintDeckApplet extends Applet.Applet {
         this._island.onContentChanged = () => this._layout();   // 内容变宽/变窄时重算形状
         this._panel = new PanelMod.Panel();
         this._panel.setSize(720, 268);
+        // 命中框：一个只有岛体大小的透明 actor，专门收鼠标。
+        // 画图的 _island.actor 带 16px 柔影留边，如果它自己进输入区，岛周围就有一圈
+        // 「看不见但吃点击」的边（浏览器标签正好在那圈里）。所以拆成两个：
+        //   _island.actor → affectsInputRegion: false（只画）
+        //   _hit          → affectsInputRegion: true（只收事件，尺寸 = geometry.body）
+        this._hit = new St.Widget({ reactive: true, track_hover: true, style_class: 'mintdeck-hitbox' });
+        this._hit.hide();
         this._panel.onAction = (action) => this._onPanelAction(action);
         this._panel.setTheme(this._theme);
         this._panel.setPage(this.v_defaultPage || 'usage');
@@ -231,14 +239,13 @@ class MintDeckApplet extends Applet.Applet {
         }
         this._chrome = [];
 
-        const params = {
-            visibleInFullscreen: !this.v_hideFullscreen,
-            affectsStruts: false,
-            affectsInputRegion: true
-        };
-        Main.layoutManager.addChrome(this._island.actor, params);
-        Main.layoutManager.addChrome(this._panel.actor, params);
-        this._chrome.push(this._island.actor, this._panel.actor);
+        const full = { visibleInFullscreen: !this.v_hideFullscreen, affectsStruts: false };
+        // 只有命中框和面板进输入区。岛自己只画不收货：带 16px 柔影留边的 actor 一旦进输入区，
+        // 岛周围就多出一圈「看不见但吃点击」的边——浏览器标签正好压在那圈里。
+        Main.layoutManager.addChrome(this._island.actor, Object.assign({ affectsInputRegion: false }, full));
+        Main.layoutManager.addChrome(this._hit, Object.assign({ affectsInputRegion: true }, full));
+        Main.layoutManager.addChrome(this._panel.actor, Object.assign({ affectsInputRegion: true }, full));
+        this._chrome.push(this._island.actor, this._hit, this._panel.actor);
         // addChrome 会把 actor 纳入 chrome 的显示管理，这里显式收一次，保证「默认收起」
         this._panel.actor.hide();
         this._reload();
@@ -306,6 +313,22 @@ class MintDeckApplet extends Applet.Applet {
         this._island.applyShape(shape);
         this._panel.place(shape, monitor);   // 尺寸由 panel 自己按页决定（_autosize）
         this._shape = shape;
+        this._placeHit();                    // 命中框跟着岛体走（不含柔影留边）
+    }
+
+    // 命中框 = 岛体矩形。它在输入区里，所以这块之外（阴影带、肩角）的点击会落到下面的窗口，
+    // 而不是被 actor 的整块矩形吃掉。
+    _placeHit() {
+        if (!this._hit) return;
+        const b = this._islandBody();
+        if (!b) {
+            this._hit.hide();
+            return;
+        }
+        this._hit.set_position(Math.round(b.x), Math.round(b.y));
+        this._hit.set_size(Math.max(1, Math.round(b.width)), Math.round(b.height));
+        if (this._island.actor.visible) this._hit.show(); else this._hit.hide();
+        try { Main.layoutManager._queueUpdateRegions(); } catch (e) { /* 没有这个私有入口就算了，下一次布局会补 */ }
     }
 
     _reload() {
@@ -442,21 +465,32 @@ class MintDeckApplet extends Applet.Applet {
     // ------------------------------------------------------------ 交互
 
     _wireEvents() {
-        const islandActor = this._island.actor;
+        // 事件全部挂在命中框上（岛体大小），画图的 actor 不参与输入区。
+        const hit = this._hit;
+        const coords = (event) => {
+            try { return event.get_coords(); } catch (e) { return [0, 0]; }
+        };
 
-        islandActor.connect('enter-event', () => {
-            this._hoverOpen = true;
-            this._cancelClose();
-            this._scheduleOpen();
-            return false;
+        hit.connect('enter-event', (a, ev) => {
+            const c = coords(ev);
+            return this._hoverAt(c[0], c[1]);
         });
-        islandActor.connect('leave-event', () => {
+        // enter 只在第一次进入时发；在同一次悬停里移到窄带内外要靠 motion 再判
+        hit.connect('motion-event', (a, ev) => {
+            const c = coords(ev);
+            return this._hoverAt(c[0], c[1]);
+        });
+        hit.connect('leave-event', () => {
             this._hoverOpen = false;
+            this._hoverInside = false;
+            this._cancelOpen();      // 没到延迟就滑走，不该还在后台等着弹
             this._scheduleClose();
             return false;
         });
-        islandActor.connect('button-release-event', (actor, event) => {
+        hit.connect('button-release-event', (actor, event) => {
             if (event.get_button() !== 1) return false;
+            const c = coords(event);
+            if (!this._inIslandBody(c[0], c[1])) return false;
             if (this._panel.actor.visible) this._closePanel(); else this._openPanel();
             return true;
         });
@@ -495,13 +529,57 @@ class MintDeckApplet extends Applet.Applet {
         else this._openPanel();
     }
 
+    // 命中判定全部交给 lib/core/geometry.js（纯函数，node 单测覆盖）：
+    // · body = 真正画出来的岛体（不含 16px 柔影留边、肩角与圆角）
+    // · wake = 岛体正中一条窄带，指针停在这里才排展开
+    // 判定用 stage 坐标，和 monitor 坐标同一套（chrome 挂在顶层，没有位移）。
+    _islandStyle() {
+        return (this._shape && this._shape.style) || 'notch';
+    }
+
+    _islandBody() {
+        if (!Geo || !Geo.body) return null;
+        return Geo.body(this._islandStyle(), this._shape && this._shape.surface);
+    }
+
+    _inIslandBody(x, y) {
+        return !!(Geo && Geo.hits && Geo.hits(this._islandBody(), x, y));
+    }
+
+    _hoverZone() {
+        if (!Geo || !Geo.wake) return null;
+        return Geo.wake(this._islandStyle(), this._shape && this._shape.surface);
+    }
+
+    _inHoverZone(x, y) {
+        return !!(Geo && Geo.hits && Geo.hits(this._hoverZone(), x, y));
+    }
+
+    // 指针移动时调用：进出判定区才动定时器，区内的连续 motion 直接返回。
+    _hoverAt(x, y) {
+        const inside = this._inHoverZone(x, y);
+        if (inside === this._hoverInside) return false;
+        this._hoverInside = inside;
+        this._hoverOpen = inside;
+        if (inside) {
+            this._cancelClose();
+            this._scheduleOpen();    // 停留够 v_openDelay 才弹
+        } else {
+            this._cancelOpen();
+            this._scheduleClose();
+        }
+        return false;
+    }
+
     _scheduleOpen() {
         this._cancelOpen();
-        const delay = this.v_openDelay || 0;
+        const delay = this.v_openDelay === undefined ? 2000 : this.v_openDelay;
         if (delay <= 0) { this._openPanel(); return; }
         this._openTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             this._openTimer = 0;
-            if (this._hoverOpen) this._openPanel();
+            // 延迟期间指针可能已经离开（leave 会取消，但 motion 抖动也可能漏）；这里再判一次
+            // 岛自己不进输入区，hover 只能问命中框
+            if (this._hoverOpen && this._hit.hover) this._openPanel();
             return false;
         });
     }
@@ -515,8 +593,8 @@ class MintDeckApplet extends Applet.Applet {
         const delay = this.v_closeDelay === undefined ? 260 : this.v_closeDelay;
         this._closeTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(0, delay), () => {
             this._closeTimer = 0;
-            // 指针可能已经回到岛或面板上
-            if (this._island.actor.hover || this._panel.actor.hover) return false;
+            // 指针可能已经回到岛（判定区）或面板上
+            if (this._hoverOpen || this._panel.actor.hover) return false;
             this._closePanel();
             return false;
         });
@@ -945,6 +1023,7 @@ class MintDeckApplet extends Applet.Applet {
         try { Main.keybindingManager.removeXletHotKey(this, HOTKEY_NAME); } catch (e) { /* 没注册过 */ }
         try { this._menu.destroy(); } catch (e) { /* ignore */ }
         try { this._island.destroy(); } catch (e) { /* ignore */ }
+        try { this._hit.destroy(); } catch (e) { /* ignore */ }
         try { this._panel.destroy(); } catch (e) { /* ignore */ }
         try { this._settings.finalize(); } catch (e) { /* ignore */ }
     }
